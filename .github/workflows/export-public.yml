@@ -1,0 +1,57 @@
+name: Export Public Repo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run export script
+        run: python scripts/export_public.py /tmp/public-export --verify
+
+      - name: Clone public repo
+        run: |
+          git clone https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/jabelk/choose-adventure-public.git /tmp/public-repo
+
+      - name: Sync exported content
+        run: |
+          # Remove old content (preserve .git)
+          find /tmp/public-repo -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          # Copy new export
+          cp -r /tmp/public-export/. /tmp/public-repo/
+          # Ensure LICENSE is present
+          if [ ! -f /tmp/public-repo/LICENSE ]; then
+            echo "WARNING: LICENSE file missing from export"
+            exit 1
+          fi
+
+      - name: Push to public repo
+        run: |
+          cd /tmp/public-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to push"
+          else
+            git commit -m "Sync from private repo ($(date -u +%Y-%m-%d))"
+            git push
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/public-export /tmp/public-repo
