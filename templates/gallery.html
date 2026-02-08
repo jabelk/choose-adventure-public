@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tier.display_name }} Gallery{% endblock %}
+
+{% block content %}
+<div class="gallery-header">
+    <a href="{{ url_prefix }}/" class="home-link">&larr; Home</a>
+    <h1>{{ tier.display_name }} Gallery</h1>
+</div>
+
+{% if stories %}
+<div class="story-grid">
+    {% for story in stories %}
+    <div class="story-card-wrapper">
+        <a href="{{ url_prefix }}/gallery/{{ story.story_id }}" class="story-card">
+            <div class="story-card-image">
+                {% set first_scene_id = story.path_history[0] if story.path_history else None %}
+                {% set first_scene = story.scenes.get(first_scene_id) if first_scene_id else None %}
+                {% if first_scene and first_scene.image_url %}
+                <img src="{{ first_scene.image_url }}" alt="{{ story.title }}">
+                {% else %}
+                <div class="story-card-placeholder">No image</div>
+                {% endif %}
+            </div>
+            <div class="story-card-info">
+                <h3>{{ story.title }}</h3>
+                <p class="story-card-prompt">{{ story.prompt[:80] }}{% if story.prompt|length > 80 %}...{% endif %}</p>
+                <span class="story-card-meta">
+                    <span class="story-card-model">{{ get_model_display_name(story.model) }}</span>
+                    &middot;
+                    <span class="story-card-model">{{ get_image_model_display_name(story.image_model) }}</span>
+                    {% if story.video_mode %}&middot; <span class="video-badge">Video</span>{% endif %}
+                    &middot;
+                    <span class="story-card-date">{{ story.completed_at.strftime('%b %d, %Y') }}</span>
+                </span>
+            </div>
+        </a>
+        <div class="export-buttons">
+            <a href="{{ url_prefix }}/gallery/{{ story.story_id }}/export/html" class="btn-export">Export HTML</a>
+            <a href="{{ url_prefix }}/gallery/{{ story.story_id }}/export/pdf" class="btn-export">Export PDF</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if saved_chats %}
+<h2 style="margin-top:1.5rem">Agent Mode Conversations</h2>
+<div class="story-grid">
+    {% for chat in saved_chats %}
+    <div class="story-card-wrapper">
+        <a href="{{ url_prefix }}/chat-reader/{{ chat.chat_id }}" class="story-card">
+            <div class="story-card-image">
+                <div class="story-card-placeholder" style="font-size:2.5rem">💬</div>
+            </div>
+            <div class="story-card-info">
+                <h3>{{ chat.character_names | join(', ') }} <span class="gallery-badge-agent">Agent Mode</span></h3>
+                <p class="story-card-prompt">{{ chat.first_message[:80] }}{% if chat.first_message|length > 80 %}...{% endif %}</p>
+                <span class="story-card-meta">
+                    {{ chat.message_count }} messages
+                    {% if chat.created_at %}&middot; {{ chat.created_at[:10] }}{% endif %}
+                </span>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not stories and not saved_chats %}
+<div class="gallery-empty">
+    <h2>No adventures yet!</h2>
+    <p>Complete a story to see it here.</p>
+    <a href="{{ url_prefix }}/" class="btn btn-primary" style="max-width: 300px; margin: 1rem auto;">Start an Adventure</a>
+</div>
+{% endif %}
+{% endblock %}

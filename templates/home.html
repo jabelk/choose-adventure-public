@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="home-header">
+    <h1>{{ tier.display_name if tier else 'Choose Your Own Adventure' }}</h1>
+    <p>Enter a prompt and let AI craft your story</p>
+    <a href="{{ url_prefix }}/gallery" class="gallery-link">View Gallery &rarr;</a>
+    <a href="{{ url_prefix }}/profiles" class="gallery-link">Manage Profiles</a>
+    <a href="{{ url_prefix }}/characters" class="gallery-link">{% if tier.name == 'kids' %}My Characters{% else %}Characters{% endif %}</a>
+    <a href="{{ url_prefix }}/family" class="gallery-link">Family</a>
+</div>
+
+
+{% if resume_story %}
+<div class="resume-banner">
+    <div class="resume-info">
+        <h3>Continue your story?</h3>
+        <p class="resume-title">{{ resume_story.title }}</p>
+        <p class="resume-meta">{{ resume_story.scene_count }} chapter{{ 's' if resume_story.scene_count != 1 else '' }} so far</p>
+    </div>
+    <div class="resume-actions">
+        <a href="{{ url_prefix }}/story/resume" class="btn btn-primary">Continue</a>
+        <form action="{{ url_prefix }}/story/abandon" method="post" style="display: inline;">
+            <button type="submit" class="btn btn-secondary">Start Fresh</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="flash-error">{{ error }}</div>
+{% endif %}
+
+{% if tier.templates %}
+<div class="template-section">
+    {% if tier.name == 'bible' %}
+    <div class="template-section-header">
+        <p class="template-section-label">Pick a Bible story or enter a reference below</p>
+    </div>
+    {% set sections = {} %}
+    {% for tpl in tier.templates %}
+        {% if tpl.section not in sections %}
+            {% set _ = sections.update({tpl.section: []}) %}
+        {% endif %}
+        {% set _ = sections[tpl.section].append(tpl) %}
+    {% endfor %}
+    {% for section_name, section_templates in sections.items() %}
+    <details class="bible-section" {% if loop.first %}open{% endif %}>
+        <summary class="bible-section-header">
+            <span class="bible-section-title">{{ section_name }}</span>
+            <span class="bible-section-count">{{ section_templates | length }} stories</span>
+        </summary>
+        <div class="template-grid bible-section-content">
+            {% for tpl in section_templates %}
+            <div class="template-card" data-template-index="{{ loop.index0 }}" onclick="selectTemplate(this)" data-prompt="{{ tpl.prompt }}" data-length="{{ tpl.length }}" data-kinks="{{ tpl.kinks | tojson }}" data-conflict-type="{{ tpl.conflict_type }}" data-character-names="{{ tpl.character_names | tojson }}" data-character-data="{{ tpl.character_data | tojson }}">
+                <div class="template-card-emoji">{{ tpl.emoji }}</div>
+                <div class="template-card-title">{{ tpl.title }}</div>
+                <div class="template-card-desc">{{ tpl.description }}</div>
+                {% if tpl.scripture_reference %}
+                <div class="template-card-scripture">{{ tpl.scripture_reference }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endfor %}
+    {% else %}
+    <div class="template-section-header">
+        <p class="template-section-label">Pick a template or write your own below</p>
+        {% if tier.templates | length > 6 %}
+        <button type="button" class="btn-shuffle" id="shuffle-btn" title="Shuffle templates">&#x1f500;</button>
+        {% endif %}
+    </div>
+    <div class="template-grid">
+        {% for tpl in tier.templates %}
+        <div class="template-card" data-template-index="{{ loop.index0 }}" onclick="selectTemplate(this)" data-prompt="{{ tpl.prompt }}" data-length="{{ tpl.length }}" data-kinks="{{ tpl.kinks | tojson }}" data-conflict-type="{{ tpl.conflict_type }}" data-character-names="{{ tpl.character_names | tojson }}" data-character-data="{{ tpl.character_data | tojson }}">
+            <div class="template-card-emoji">{{ tpl.emoji }}</div>
+            <div class="template-card-title">{{ tpl.title }}</div>
+            <div class="template-card-desc">{{ tpl.description }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% if tier.name == 'kids' %}
+<div class="bible-crosslink">
+    <a href="/bible/">Explore our full Bible story library &rarr;</a>
+</div>
+{% endif %}
+{% endif %}
+
+<form class="prompt-form" id="start-form" action="{{ url_prefix }}/story/start" method="post" enctype="multipart/form-data">
+    {% if tier.name == 'bible' %}
+    <label for="prompt">Request a Bible Story</label>
+    <div class="bible-reference-field">
+        <input
+            type="text"
+            id="prompt"
+            name="prompt"
+            placeholder="Enter a Bible reference (e.g., Ruth 1-4, Psalm 23, Acts 9)"
+            required
+            minlength="2"
+            class="text-input bible-reference-input"
+            autocomplete="off"
+            value="{{ prompt_value or '' }}"
+        >
+        <p class="bible-reference-hint">Type a book and chapter (e.g., "Genesis 1", "John 3:16") or pick a story from the library above</p>
+    </div>
+    <input type="hidden" name="bible_reference_mode" value="on">
+    {% else %}
+    <label for="prompt">What's your adventure?</label>
+    <div class="prompt-input-wrapper">
+        <textarea
+            id="prompt"
+            name="prompt"
+            placeholder="A knight discovers a hidden cave in the mountains..."
+            required
+            minlength="2"
+        >{{ prompt_value or '' }}</textarea>
+        <button type="button" class="btn-mic mic-idle" id="voice-mic-btn" aria-label="Voice input" title="Speak your prompt">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+        </button>
+    </div>
+    <span class="voice-error" id="voice-error"></span>
+    {% endif %}
+
+    <div class="length-selector">
+        <label class="section-label">Story Length</label>
+        <div class="length-options">
+            <label class="length-option">
+                <input type="radio" name="length" value="short">
+                <span class="option-card">
+                    <span class="option-name">Short</span>
+                    <span class="option-desc">~3 chapters, 5 min</span>
+                </span>
+            </label>
+            <label class="length-option">
+                <input type="radio" name="length" value="medium" checked>
+                <span class="option-card">
+                    <span class="option-name">Medium</span>
+                    <span class="option-desc">~5 chapters, 10-15 min</span>
+                </span>
+            </label>
+            <label class="length-option">
+                <input type="radio" name="length" value="long">
+                <span class="option-card">
+                    <span class="option-name">Long</span>
+                    <span class="option-desc">~7 chapters, 20+ min</span>
+                </span>
+            </label>
+        </div>
+    </div>
+
+    {% if available_models %}
+    <div class="model-selector">
+        <label class="section-label">AI Model</label>
+        <div class="model-options">
+            {% for model in available_models %}
+            <label class="model-option">
+                <input type="radio" name="model" value="{{ model.key }}" {% if model.key == default_model %}checked{% endif %}>
+                <span class="option-card">
+                    <span class="option-name">{{ model.display_name }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="flash-error">No AI models available. Please configure at least one API key.</div>
+    {% endif %}
+
+    {% if available_image_models|length > 1 %}
+    <div class="model-selector">
+        <label class="section-label">Image Model</label>
+        {% set ns = namespace(current_provider='') %}
+        {% for img_model in available_image_models %}
+        {% if img_model.provider != ns.current_provider %}
+        {% if ns.current_provider != '' %}</div>{% endif %}
+        {% set ns.current_provider = img_model.provider %}
+        <div class="model-group">
+            <span class="model-group-label">{{ img_model.provider }}</span>
+        {% endif %}
+            <label class="model-option">
+                <input type="radio" name="image_model" value="{{ img_model.key }}" {% if img_model.key == default_image_model %}checked{% endif %}>
+                <span class="option-card">
+                    <span class="option-name">{{ img_model.display_name }}</span>
+                </span>
+            </label>
+        {% endfor %}
+        {% if ns.current_provider != '' %}</div>{% endif %}
+    </div>
+    {% elif available_image_models|length == 1 %}
+    <input type="hidden" name="image_model" value="{{ available_image_models[0].key }}">
+    {% endif %}
+
+    {% if art_styles %}
+    <div class="model-selector">
+        <label class="section-label">Art Style</label>
+        {% set ns_art = namespace(current_category='') %}
+        {% for style in art_styles %}
+        {% if style.category != ns_art.current_category %}
+        {% if ns_art.current_category != '' %}</div>{% endif %}
+        {% set ns_art.current_category = style.category %}
+        <div class="model-group">
+            <span class="model-group-label">{{ style.category }}</span>
+        {% endif %}
+            <label class="model-option">
+                <input type="radio" name="art_style" value="{{ style.key }}" {% if style.key == 'none' %}checked{% endif %}>
+                <span class="option-card">
+                    <span class="option-name">{{ style.display_name }}</span>
+                </span>
+            </label>
+        {% endfor %}
+        {% if ns_art.current_category != '' %}</div>{% endif %}
+    </div>
+    {% endif %}
+
+
+    <details class="story-flavor-section">
+        <summary class="section-label story-flavor-toggle">Character</summary>
+
+        {% if roster_characters %}
+        <div class="character-picker-section">
+            <label class="flavor-label">{% if tier.name == 'kids' %}Pick a favorite character{% else %}Pick from saved characters{% endif %}</label>
+            <div id="character-picker" data-characters-url="{{ url_prefix }}/characters"></div>
+        </div>
+        {% endif %}
+
+        <div class="character-fields">
+            {% if roster_characters %}
+            <label class="flavor-label">Or describe a character manually</label>
+            {% endif %}
+            <div class="character-field">
+                <label for="character_name" class="flavor-label">Character Name</label>
+                <input type="text" id="character_name" name="character_name" maxlength="100"
+                       placeholder="{% if tier.name == 'kids' %}e.g. Mr. Snuggles{% elif tier.name == 'bible' %}e.g. David{% endif %}" class="text-input">
+            </div>
+            <div class="character-field">
+                <label for="character_description" class="flavor-label">{% if tier.name == 'kids' %}Description{% else %}Physical Description{% endif %}</label>
+                <textarea id="character_description" name="character_description" maxlength="500"
+                          placeholder="{% if tier.name == 'kids' %}A fluffy purple bear who loves cuddles...{% else %}Hair, eyes, build, distinguishing features...{% endif %}"
+                          class="text-input" rows="3"></textarea>
+            </div>
+        </div>
+        <input type="hidden" id="template_fallback_characters" name="template_fallback_characters" value="">
+    </details>
+
+    {% if story_option_groups %}
+    <details class="story-flavor-section">
+        <summary class="section-label story-flavor-toggle">Story Flavor Options</summary>
+        <div class="story-flavor-grid">
+            {% for group in story_option_groups %}
+            <div class="flavor-group">
+                <label class="flavor-label">{{ group.label }}</label>
+                <div class="flavor-options">
+                    {% for choice in group.choices_for_tier(tier.name) %}
+                    <label class="flavor-option">
+                        <input type="radio" name="{{ group.name }}" value="{{ choice.key }}" {% if choice.key == '' %}checked{% endif %}>
+                        <span class="flavor-pill">{{ choice.display_name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    {% if tier.name == 'kids' %}
+    <div class="bedtime-mode-selector">
+        <label class="section-label">Bedtime Mode</label>
+        <div class="memory-toggle-row">
+            <label>
+                <input type="checkbox" name="bedtime_mode" value="on" id="bedtime-mode-toggle">
+                Calming bedtime story with warm night theme
+            </label>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if video_mode_available %}
+    <div class="video-mode-selector">
+        <label class="section-label">Video Mode</label>
+        <div class="memory-toggle-row">
+            <label>
+                <input type="checkbox" name="video_mode" value="on">
+                Generate short video clips for each scene (requires xAI)
+            </label>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if profiles %}
+    <div class="memory-mode-selector">
+        <label class="section-label">Memory Mode</label>
+        <div class="memory-toggle-row">
+            <label>
+                <input type="checkbox" name="memory_mode" value="on" id="memory-mode-toggle"
+                    onchange="document.getElementById('profile-dropdown').style.display = this.checked ? 'block' : 'none'">
+                Use a profile to personalize this story
+            </label>
+        </div>
+        <div class="profile-dropdown" id="profile-dropdown" style="display: none;">
+            <select name="profile_id">
+                {% for profile in profiles %}
+                <option value="{{ profile.profile_id }}">{{ profile.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if family %}
+    <div class="family-mode-selector">
+        <label class="section-label">Family Mode</label>
+        <div class="memory-toggle-row">
+            <label>
+                <input type="checkbox" name="family_mode" value="on" id="family-mode-toggle">
+                Include family members as characters in this story
+            </label>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="upload-section">
+        <label class="section-label">Reference Photos (optional)</label>
+        <p class="upload-hint">Upload 1-3 photos to include faces or characters in generated images</p>
+        <div class="upload-drop-zone" id="upload-drop-zone">
+            <span class="upload-drop-label">Drag &amp; drop photos here or click to browse</span>
+            <input type="file" id="reference-photos-input" name="reference_photos"
+                   accept="image/jpeg,image/png" multiple
+                   style="display: none;">
+        </div>
+        <div class="upload-previews" id="upload-previews"></div>
+        <div class="upload-status" id="upload-status"></div>
+    </div>
+
+    <div class="btn-row">
+        <button type="submit" class="btn btn-primary" {% if not available_models %}disabled{% endif %}>Start Adventure</button>
+    </div>
+</form>
+
+<form class="surprise-form" action="{{ url_prefix }}/story/surprise" method="post">
+    {% if tier.name == 'kids' %}
+    <input type="hidden" name="bedtime_mode" id="surprise-bedtime-mode" value="">
+    {% endif %}
+    {% if family %}
+    <input type="hidden" name="family_mode" id="surprise-family-mode" value="">
+    {% endif %}
+    <button type="submit" class="btn btn-surprise" {% if not available_models %}disabled{% endif %}>Surprise Me!</button>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/voice-input.js"></script>
+<script>
+    initVoiceInput('prompt', {{ url_prefix | tojson }});
+</script>
+<script src="/static/js/upload.js"></script>
+{% if tier.name == 'kids' %}
+<script>
+    (function() {
+        var toggle = document.getElementById('bedtime-mode-toggle');
+        var hidden = document.getElementById('surprise-bedtime-mode');
+        if (toggle && hidden) {
+            toggle.addEventListener('change', function() {
+                hidden.value = toggle.checked ? 'on' : '';
+            });
+        }
+    })();
+</script>
+{% endif %}
+{% if family %}
+<script>
+    (function() {
+        var toggle = document.getElementById('family-mode-toggle');
+        var hidden = document.getElementById('surprise-family-mode');
+        if (toggle && hidden) {
+            toggle.addEventListener('change', function() {
+                hidden.value = toggle.checked ? 'on' : '';
+            });
+        }
+    })();
+</script>
+{% endif %}
+{% if roster_characters %}
+<script src="/static/js/character-picker.js"></script>
+<script>
+    initCharacterPicker({{ roster_characters_json | safe }}, []);
+</script>
+{% endif %}
+{% if tier.templates | length > 6 %}
+<script src="/static/js/template-shuffle.js"></script>
+<script>
+    initTemplateShuffle(6);
+</script>
+{% endif %}
+{% endblock %}

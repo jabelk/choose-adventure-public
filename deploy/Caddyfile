@@ -1,0 +1,11 @@
+# Choose Your Own Adventure - Caddy reverse proxy
+# Serves the app on port 80, forwarding to uvicorn on 8080
+
+:80 {
+    reverse_proxy app:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

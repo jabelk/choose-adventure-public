@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Choose Your Own Adventure{% endblock %}
+
+{% block content %}
+<div style="max-width: 900px; margin: 0 auto; padding: 20px 0;">
+    <h1 style="margin-bottom: 8px;">Admin Dashboard</h1>
+    <p style="color: var(--text-secondary, #888); margin-bottom: 24px;">
+        <a href="/" style="color: var(--accent, #f0c040); text-decoration: none;">&larr; Back to Home</a>
+    </p>
+
+    {% if msg %}
+    <div style="background: var(--success-bg, #1a3a1a); border: 1px solid var(--success-border, #2d5a2d); color: var(--success-text, #6fcf6f); padding: 12px 16px; border-radius: 8px; margin-bottom: 20px;">
+        {{ msg }}
+    </div>
+    {% endif %}
+
+    <!-- Storage Summary -->
+    <h2 style="margin-bottom: 12px;">Storage</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 32px;">
+        <div style="background: var(--card-bg, #1e1e2e); border: 1px solid var(--border, #333); border-radius: 8px; padding: 16px;">
+            <div style="font-size: 2em; font-weight: bold;">{{ stats.stories.count }}</div>
+            <div style="color: var(--text-secondary, #888);">Stories</div>
+            <div style="font-size: 0.85em; color: var(--text-secondary, #888);">{{ stats.stories.display }}</div>
+        </div>
+        <div style="background: var(--card-bg, #1e1e2e); border: 1px solid var(--border, #333); border-radius: 8px; padding: 16px;">
+            <div style="font-size: 2em; font-weight: bold;">{{ stats.images.count }}</div>
+            <div style="color: var(--text-secondary, #888);">Images</div>
+            <div style="font-size: 0.85em; color: var(--text-secondary, #888);">{{ stats.images.display }}</div>
+        </div>
+        <div style="background: var(--card-bg, #1e1e2e); border: 1px solid var(--border, #333); border-radius: 8px; padding: 16px;">
+            <div style="font-size: 2em; font-weight: bold;">{{ stats.videos.count }}</div>
+            <div style="color: var(--text-secondary, #888);">Videos</div>
+            <div style="font-size: 0.85em; color: var(--text-secondary, #888);">{{ stats.videos.display }}</div>
+        </div>
+        <div style="background: var(--card-bg, #1e1e2e); border: 1px solid var(--border, #333); border-radius: 8px; padding: 16px;">
+            <div style="font-size: 2em; font-weight: bold;">{{ stats.progress.count }}</div>
+            <div style="color: var(--text-secondary, #888);">In Progress</div>
+            <div style="font-size: 0.85em; color: var(--text-secondary, #888);">{{ stats.progress.display }}</div>
+        </div>
+    </div>
+    <p style="color: var(--text-secondary, #888); margin-top: -20px; margin-bottom: 32px;">
+        Total storage: <strong>{{ stats.total_display }}</strong>
+    </p>
+
+    <!-- Orphan Cleanup -->
+    <h2 style="margin-bottom: 12px;">Orphaned Files</h2>
+    <div style="background: var(--card-bg, #1e1e2e); border: 1px solid var(--border, #333); border-radius: 8px; padding: 16px; margin-bottom: 32px;">
+        {% if orphans.total_count > 0 %}
+        <p>
+            <strong>{{ orphans.images | length }}</strong> orphaned image(s),
+            <strong>{{ orphans.videos | length }}</strong> orphaned video(s){% if orphans.uploads | default([]) | length > 0 %},
+            <strong>{{ orphans.uploads | length }}</strong> orphaned upload dir(s){% endif %}
+            &mdash; {{ orphans.total_display }} reclaimable
+        </p>
+        <form action="/admin/cleanup-orphans" method="post" style="margin-top: 8px;">
+            <button type="submit" onclick="return confirm('Delete all {{ orphans.total_count }} orphaned file(s)? This cannot be undone.')"
+                    style="background: #c0392b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">
+                Clean Up Orphans
+            </button>
+        </form>
+        {% else %}
+        <p style="color: var(--text-secondary, #888);">No orphaned files found.</p>
+        {% endif %}
+    </div>
+
+    <!-- Saved Stories -->
+    <h2 style="margin-bottom: 12px;">Saved Stories ({{ stories | length }})</h2>
+    {% if stories %}
+    <div style="overflow-x: auto; margin-bottom: 32px;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border, #333); text-align: left;">
+                    <th style="padding: 8px;">Title</th>
+                    <th style="padding: 8px;">Tier</th>
+                    <th style="padding: 8px;">Model</th>
+                    <th style="padding: 8px;">Scenes</th>
+                    <th style="padding: 8px;">Created</th>
+                    <th style="padding: 8px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for story in stories %}
+                <tr style="border-bottom: 1px solid var(--border, #333);">
+                    <td style="padding: 8px;">
+                        {% if story.error %}
+                        <span style="color: #e74c3c;">{{ story.title }}</span>
+                        {% else %}
+                        {{ story.title }}
+                        {% endif %}
+                    </td>
+                    <td style="padding: 8px;">{{ story.tier }}</td>
+                    <td style="padding: 8px;">{{ story.model }}</td>
+                    <td style="padding: 8px;">{{ story.scene_count }}</td>
+                    <td style="padding: 8px;">
+                        {% if story.created_at %}
+                        {{ story.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                        &mdash;
+                        {% endif %}
+                    </td>
+                    <td style="padding: 8px;">
+                        <form action="/admin/delete-story/{{ story.story_id }}" method="post" style="display:inline;">
+                            <button type="submit"
+                                    onclick="return confirm('Delete this story and all its images/videos?')"
+                                    style="background: #c0392b; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color: var(--text-secondary, #888); margin-bottom: 32px;">No saved stories.</p>
+    {% endif %}
+
+    <!-- In-Progress Saves -->
+    <h2 style="margin-bottom: 12px;">In-Progress Saves ({{ in_progress | length }})</h2>
+    {% if in_progress %}
+    <div style="overflow-x: auto; margin-bottom: 32px;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border, #333); text-align: left;">
+                    <th style="padding: 8px;">Tier</th>
+                    <th style="padding: 8px;">Prompt</th>
+                    <th style="padding: 8px;">Model</th>
+                    <th style="padding: 8px;">Scenes</th>
+                    <th style="padding: 8px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in in_progress %}
+                <tr style="border-bottom: 1px solid var(--border, #333);">
+                    <td style="padding: 8px;">{{ entry.tier_name }}</td>
+                    <td style="padding: 8px;">
+                        {% if entry.error %}
+                        <span style="color: #e74c3c;">{{ entry.prompt }}</span>
+                        {% else %}
+                        {{ entry.prompt }}{% if entry.prompt | length >= 80 %}&hellip;{% endif %}
+                        {% endif %}
+                    </td>
+                    <td style="padding: 8px;">{{ entry.model }}</td>
+                    <td style="padding: 8px;">{{ entry.scene_count }}</td>
+                    <td style="padding: 8px;">
+                        <form action="/admin/delete-progress/{{ entry.tier_name }}" method="post" style="display:inline;">
+                            <button type="submit"
+                                    onclick="return confirm('Delete in-progress save for {{ entry.tier_name }}?')"
+                                    style="background: #c0392b; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color: var(--text-secondary, #888); margin-bottom: 32px;">No in-progress saves.</p>
+    {% endif %}
+</div>
+{% endblock %}

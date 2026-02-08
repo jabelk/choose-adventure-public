@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}{{ story.title }} - Chapter {{ scene.depth + 1 }}{% endblock %}
+
+{% block content %}
+{% if bedtime_mode %}
+<script>document.body.classList.add('theme-bedtime');</script>
+{% endif %}
+<div class="scene-header">
+    <a href="{{ url_prefix }}/" class="home-link" title="Back to home">&larr; Home</a>
+    <span class="story-title">{{ story.title }}</span>
+    <span class="chapter">Chapter {{ scene.depth + 1 }} of ~{{ story.target_depth }} · {{ model_display_name }} · {{ get_image_model_display_name(story.image_model) }}</span>
+    {% if bedtime_mode %}<span class="bedtime-timer" id="bedtime-timer">00:00</span>{% endif %}
+</div>
+
+{% if has_branches %}
+<div class="tree-map-bar">
+    <button class="tree-map-toggle" id="tree-map-toggle" onclick="toggleTreeMap()">Story Map</button>
+</div>
+<div class="tree-map-container" id="tree-map-container"></div>
+{% endif %}
+
+<div class="scene-image-container" id="scene-image-container" data-scene-id="{{ scene.scene_id }}" data-prompt="{{ scene.image.prompt | e }}" data-regenerate-url="{{ url_prefix }}/story/image/{{ scene.scene_id }}/regenerate">
+    {% if scene.image.status.value == 'complete' and scene.image.url %}
+        <img src="{{ scene.image.url }}" alt="Scene illustration">
+        <button class="btn-regenerate" onclick="retryImage('{{ scene.scene_id }}')">&#x21BB; Regenerate</button>
+    {% elif scene.image.status.value == 'failed' %}
+        <div class="image-failed-state">
+            <p>Image generation failed</p>
+            <button class="btn-retry" onclick="retryImage('{{ scene.scene_id }}')">Retry</button>
+        </div>
+    {% else %}
+        <div class="image-generating-placeholder">
+            <span class="image-progress-text">Creating your illustration...</span>
+        </div>
+    {% endif %}
+</div>
+
+{% if scene.extra_images %}
+{% for extra_img in scene.extra_images %}
+<div class="extra-image-container" id="extra-image-{{ loop.index0 }}" data-scene-id="{{ scene.scene_id }}" data-index="{{ loop.index0 }}">
+    <span class="extra-image-label">{% if loop.index0 == 0 %}Character Portrait{% else %}Landscape View{% endif %}</span>
+    {% if extra_img.status.value == 'complete' and extra_img.url %}
+        <img src="{{ extra_img.url }}" alt="{% if loop.index0 == 0 %}Character close-up{% else %}Environment wide shot{% endif %}">
+    {% elif extra_img.status.value == 'failed' %}
+        <div class="image-failed-state">
+            <p>Image generation failed</p>
+            <button class="btn-retry" onclick="retryExtraImage('{{ scene.scene_id }}', {{ loop.index0 }})">Retry</button>
+        </div>
+    {% else %}
+        <div class="image-generating-placeholder">
+            <span class="image-progress-text">Creating illustration...</span>
+        </div>
+    {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if story.video_mode %}
+<div class="scene-video" id="scene-video-container" data-scene-id="{{ scene.scene_id }}">
+    {% if scene.image.video_status == 'complete' and scene.image.video_url %}
+        <video controls playsinline preload="metadata">
+            <source src="{{ scene.image.video_url }}" type="video/mp4">
+        </video>
+    {% elif scene.image.video_status in ['generating', 'pending', 'none'] %}
+        <div class="video-loading">Generating video clip...</div>
+    {% elif scene.image.video_status == 'failed' %}
+        <div class="video-failed">
+            <p>Video generation failed</p>
+            <button class="btn-retry" onclick="retryVideo('{{ scene.scene_id }}')">Retry</button>
+        </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if tts_available %}
+<div class="scene-text" id="scene-text">{% for sentence in scene.content | regex_split('(?<=[.!?])\\s+') %}<span class="tts-sentence" data-index="{{ loop.index0 }}">{{ sentence }} </span>{% endfor %}</div>
+{% else %}
+<div class="scene-text" id="scene-text">{{ scene.content }}</div>
+{% endif %}
+
+{% if tts_available %}
+<div class="tts-controls" data-tts-autoplay="{{ tts_autoplay }}">
+    <button id="tts-play-btn" class="tts-play-btn tts-idle" type="button" aria-label="Read aloud">
+        <span class="tts-icon">&#x1F50A;</span>
+    </button>
+    <select id="tts-voice-select" class="tts-voice-select" aria-label="Select voice">
+        {% for voice_id, voice_name in tts_voices %}
+        <option value="{{ voice_id }}"{% if voice_id == tts_current_voice %} selected{% endif %}>{{ voice_name }}</option>
+        {% endfor %}
+    </select>
+    <label class="tts-autoplay-label">
+        <input type="checkbox" id="tts-autoplay-toggle" {% if tts_autoplay == 'true' %}checked{% endif %}>
+        <span class="tts-autoplay-text">Auto</span>
+    </label>
+</div>
+{% endif %}
+
+{% if scene.is_ending %}
+<div class="ending">
+    <h2>The End</h2>
+    <p>Your adventure has reached its conclusion.</p>
+    <div class="ending-actions">
+        <a href="{{ url_prefix }}/" class="btn btn-primary">Start New Adventure</a>
+        <form action="{{ url_prefix }}/story/back" method="post" style="display: inline;">
+            <button type="submit" class="btn btn-secondary">Go Back</button>
+        </form>
+    </div>
+</div>
+{% else %}
+{% if scene.depth >= story.target_depth - 2 or scene.depth >= 2 %}
+<div class="story-length-controls">
+    {% if scene.depth >= story.target_depth - 2 %}
+    <form action="{{ url_prefix }}/story/keep-going/{{ scene.scene_id }}" method="post">
+        <button type="submit" class="btn-keep-going">Keep Going</button>
+    </form>
+    {% endif %}
+    {% if scene.depth >= 2 %}
+    <form action="{{ url_prefix }}/story/wrap-up/{{ scene.scene_id }}" method="post">
+        <button type="submit" class="btn-wrap-up">Wrap It Up</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+<div class="choices">
+    {% for choice in scene.choices %}
+    <form class="choice-form" action="{{ url_prefix }}/story/choose/{{ scene.scene_id }}/{{ choice.choice_id }}" method="post">
+        <button type="submit" class="choice-btn{% if choice.choice_id in explored_choices %} explored{% endif %}">{{ choice.text }}{% if choice.choice_id in explored_choices %}<span class="explored-indicator">explored</span>{% endif %}</button>
+    </form>
+    {% endfor %}
+    <form class="choice-form custom-choice-form" action="{{ url_prefix }}/story/custom-choice/{{ scene.scene_id }}" method="post">
+        <div class="custom-choice-input">
+            <input type="text" name="custom_text" placeholder="Or write your own path..." required minlength="2" maxlength="500" class="custom-choice-text">
+            <button type="submit" class="choice-btn custom-choice-btn">Go &rarr;</button>
+        </div>
+    </form>
+</div>
+
+<div class="nav-bar">
+    <form action="{{ url_prefix }}/story/back" method="post">
+        <button type="submit" class="btn btn-secondary">&larr; Go Back</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/tree-map.js"></script>
+<script src="/static/js/swipe.js"></script>
+<script src="/static/js/prompt-edit.js"></script>
+<script src="/static/js/ambiance.js"></script>
+<script>
+(function() {
+    var el = document.getElementById('scene-text');
+    if (el) {
+        initAmbiance({
+            sceneContent: el.textContent || '',
+            bedtimeMode: {{ bedtime_mode | tojson }}
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var container = document.getElementById('scene-image-container');
+    if (container && container.getAttribute('data-prompt')) {
+        initPromptEdit({
+            container: container,
+            prompt: container.getAttribute('data-prompt'),
+            regenerateUrl: container.getAttribute('data-regenerate-url')
+        });
+    }
+})();
+</script>
+{% if tts_available %}
+<script src="/static/js/tts-player.js"></script>
+<script>
+    initTTSPlayer({
+        sceneId: {{ scene.scene_id | tojson }},
+        urlPrefix: {{ url_prefix | tojson }},
+        ttsUrl: {{ url_prefix | tojson }} + '/story/tts/' + {{ scene.scene_id | tojson }},
+        autoplay: {{ tts_autoplay | tojson }} === 'true'
+    });
+</script>
+{% endif %}
+<script>
+(function() {
+    var container = document.querySelector('.container');
+    if (!container || typeof initSwipeNav === 'undefined') return;
+
+    var urlPrefix = {{ url_prefix | tojson }};
+    var parentSceneId = {{ scene.parent_scene_id | tojson if scene.parent_scene_id else 'null' }};
+
+    initSwipeNav(container, {
+        onSwipeRight: function() {
+            // Swipe right = go back (same as clicking Go Back)
+            if (parentSceneId) {
+                var backForm = document.querySelector('.nav-bar form[action*="/story/back"]')
+                    || document.querySelector('.ending-actions form[action*="/story/back"]');
+                if (backForm) backForm.submit();
+            }
+        },
+        onSwipeLeft: function() {
+            // Swipe left = no-op for now (forward would need path history tracking)
+        }
+    });
+})();
+</script>
+{% if has_branches %}
+<script>
+    var treeData = {{ tree_data | tojson }};
+    var currentId = {{ scene.scene_id | tojson }};
+    var urlPrefix = {{ url_prefix | tojson }};
+
+    function toggleTreeMap() {
+        var container = document.getElementById('tree-map-container');
+        var toggle = document.getElementById('tree-map-toggle');
+        if (container.classList.contains('visible')) {
+            container.classList.remove('visible');
+            toggle.classList.remove('active');
+        } else {
+            container.classList.add('visible');
+            toggle.classList.add('active');
+            if (!container.hasChildNodes()) {
+                renderTreeMap('tree-map-container', treeData, currentId, urlPrefix, 'active');
+            }
+        }
+    }
+</script>
+{% endif %}
+{% if scene.image.status.value in ['pending', 'generating'] %}
+<script>
+    (function() {
+        const container = document.getElementById('scene-image-container');
+        if (container) startProgressMessages(container);
+        pollImageStatus('{{ scene.scene_id }}');
+    })();
+</script>
+{% endif %}
+{% if scene.extra_images %}
+<script>
+    (function() {
+        var hasGenerating = false;
+        {% for extra_img in scene.extra_images %}
+        {% if extra_img.status.value in ['pending', 'generating'] %}
+        hasGenerating = true;
+        {% endif %}
+        {% endfor %}
+        if (hasGenerating) {
+            pollExtraImages('{{ scene.scene_id }}', {{ scene.extra_images | length }});
+        }
+    })();
+</script>
+{% endif %}
+{% if story.video_mode and scene.image.video_status not in ['complete', 'failed'] %}
+<script>
+    (function() {
+        pollVideoStatus('{{ scene.scene_id }}');
+    })();
+</script>
+{% endif %}
+{% if bedtime_mode %}
+<script src="/static/js/bedtime-timer.js"></script>
+<script>initBedtimeTimer();</script>
+{% endif %}
+{% endblock %}

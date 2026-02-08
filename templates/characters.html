@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Characters - {{ tier.display_name }}{% endblock %}
+
+{% block content %}
+<div class="home-header">
+    <h1>{% if tier.name == 'kids' %}My Characters{% else %}Character Roster{% endif %}</h1>
+    <p>{% if tier.name == 'kids' %}Save your favorite characters to use in stories{% else %}Save characters for quick reuse in stories{% endif %}</p>
+    <a href="{{ url_prefix }}/" class="gallery-link">&larr; Back to Home</a>
+</div>
+
+{% if error %}
+<div class="flash-error">{{ error }}</div>
+{% endif %}
+{% if success %}
+<div class="flash-success">{{ success }}</div>
+{% endif %}
+
+<div class="character-count">{{ characters|length }} / {{ max_characters }} characters</div>
+
+{% if characters|length < max_characters %}
+<div class="character-form-section">
+    <h2>{% if edit_character %}Edit Character{% else %}Add New Character{% endif %}</h2>
+    <form class="character-form"
+          action="{% if edit_character %}{{ url_prefix }}/characters/{{ edit_character.character_id }}/update{% else %}{{ url_prefix }}/characters/create{% endif %}"
+          method="post" enctype="multipart/form-data">
+        <div class="character-field">
+            <label for="char-name" class="flavor-label">Character Name</label>
+            <input type="text" id="char-name" name="name" maxlength="100" required
+                   placeholder="{% if tier.name == 'kids' %}e.g. Mr. Snuggles{% elif tier.name == 'bible' %}e.g. David{% endif %}" class="text-input"
+                   value="{{ edit_character.name if edit_character else '' }}">
+        </div>
+        <div class="character-field">
+            <label for="char-desc" class="flavor-label">Physical Description</label>
+            <textarea id="char-desc" name="description" maxlength="500" required
+                      placeholder="{% if tier.name == 'kids' %}A fluffy purple bear who loves cuddles and wears a tiny crown{% else %}Hair, eyes, build, distinguishing features...{% endif %}"
+                      class="text-input" rows="3">{{ edit_character.description if edit_character else '' }}</textarea>
+        </div>
+
+        {% if edit_character and edit_character.photo_paths %}
+        <div class="character-photos-existing">
+            <label class="flavor-label">Current Photos</label>
+            <div class="character-photo-grid">
+                {% for photo_path in edit_character.photo_paths %}
+                {% set filename = photo_path.split('/')[-1] %}
+                <div class="character-photo-thumb">
+                    <img src="{{ url_prefix }}/characters/{{ edit_character.character_id }}/photo/{{ filename }}" alt="Reference photo">
+                    <label class="photo-remove-label">
+                        <input type="checkbox" name="remove_photos" value="{{ filename }}">
+                        Remove
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not edit_character or edit_character.photo_paths|length < 3 %}
+        <div class="character-field">
+            <label class="flavor-label">Reference Photos (optional, max 3 total)</label>
+            <input type="file" name="reference_photos" accept="image/jpeg,image/png" multiple
+                   class="file-input">
+        </div>
+        {% endif %}
+
+        <div class="character-form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if edit_character %}Update Character{% else %}Save Character{% endif %}
+            </button>
+            {% if edit_character %}
+            <a href="{{ url_prefix }}/characters" class="btn btn-secondary">Cancel</a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if edit_character %}
+    <!-- Outfits Section -->
+    <div class="outfit-section">
+        <h3>Outfits</h3>
+
+        {% if editing_outfit %}
+        <form class="outfit-form"
+              action="{{ url_prefix }}/characters/{{ edit_character.character_id }}/outfits/{{ editing_outfit.outfit_id }}/update"
+              method="post" enctype="multipart/form-data">
+            <div class="character-field">
+                <label class="flavor-label">Outfit Name</label>
+                <input type="text" name="outfit_name" maxlength="100" required
+                       value="{{ editing_outfit.name }}" class="text-input"
+                       placeholder="e.g. Yoga Class">
+            </div>
+            <div class="character-field">
+                <label class="flavor-label">Description</label>
+                <textarea name="outfit_description" maxlength="500" required
+                          class="text-input" rows="2">{{ editing_outfit.description }}</textarea>
+            </div>
+            {% if editing_outfit.photo_path %}
+            <div class="outfit-photo-existing">
+                {% set outfit_photo_filename = editing_outfit.photo_path.split('/')[-1] %}
+                <img src="{{ url_prefix }}/characters/{{ edit_character.character_id }}/outfits/{{ editing_outfit.outfit_id }}/photo/{{ outfit_photo_filename }}"
+                     alt="{{ editing_outfit.name }}" class="outfit-photo-thumb">
+                <label class="photo-remove-label">
+                    <input type="checkbox" name="remove_outfit_photo" value="1"> Remove photo
+                </label>
+            </div>
+            {% endif %}
+            <div class="character-field">
+                <label class="flavor-label">Reference Photo (optional)</label>
+                <input type="file" name="outfit_photo" accept="image/jpeg,image/png,image/webp" class="file-input">
+            </div>
+            <div class="character-form-actions">
+                <button type="submit" class="btn btn-primary btn-sm">Update Outfit</button>
+                <a href="{{ url_prefix }}/characters?edit={{ edit_character.character_id }}" class="btn btn-secondary btn-sm">Cancel</a>
+            </div>
+        </form>
+        {% else %}
+        <form class="outfit-form"
+              action="{{ url_prefix }}/characters/{{ edit_character.character_id }}/outfits/create"
+              method="post" enctype="multipart/form-data">
+            <div class="character-field">
+                <label class="flavor-label">Outfit Name</label>
+                <input type="text" name="outfit_name" maxlength="100" required
+                       placeholder="e.g. Yoga Class" class="text-input">
+            </div>
+            <div class="character-field">
+                <label class="flavor-label">Description</label>
+                <textarea name="outfit_description" maxlength="500" required
+                          placeholder="e.g. Black yoga pants, cropped tank top, hair in ponytail"
+                          class="text-input" rows="2"></textarea>
+            </div>
+            <div class="character-field">
+                <label class="flavor-label">Reference Photo (optional)</label>
+                <input type="file" name="outfit_photo" accept="image/jpeg,image/png,image/webp" class="file-input">
+            </div>
+            <div class="character-form-actions">
+                <button type="submit" class="btn btn-primary btn-sm">Add Outfit</button>
+            </div>
+        </form>
+        {% endif %}
+
+        {% if edit_character.outfits %}
+        <div class="outfit-list">
+            {% for outfit in edit_character.outfits %}
+            <div class="outfit-card">
+                {% if outfit.photo_path %}
+                {% set outfit_fn = outfit.photo_path.split('/')[-1] %}
+                <img src="{{ url_prefix }}/characters/{{ edit_character.character_id }}/outfits/{{ outfit.outfit_id }}/photo/{{ outfit_fn }}"
+                     alt="{{ outfit.name }}" class="outfit-photo-thumb">
+                {% else %}
+                <div class="outfit-letter">{{ outfit.name[0] }}</div>
+                {% endif %}
+                <div class="outfit-card-info">
+                    <div class="outfit-card-name">{{ outfit.name }}</div>
+                    <div class="outfit-card-desc">{{ outfit.description[:80] }}{% if outfit.description|length > 80 %}...{% endif %}</div>
+                </div>
+                <div class="outfit-card-actions">
+                    <a href="{{ url_prefix }}/characters?edit={{ edit_character.character_id }}&edit_outfit={{ outfit.outfit_id }}" class="btn btn-secondary btn-sm">Edit</a>
+                    <form action="{{ url_prefix }}/characters/{{ edit_character.character_id }}/outfits/{{ outfit.outfit_id }}/delete"
+                          method="post" style="display:inline"
+                          onsubmit="return confirm('Delete outfit {{ outfit.name }}?')">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="outfit-empty">No outfits yet. Add one above!</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="flash-error">Character limit reached ({{ max_characters }} max). Delete a character to add a new one.</div>
+{% endif %}
+
+{% if characters %}
+<div class="character-list">
+    <h2>Saved Characters</h2>
+    {% for char in characters %}
+    <div class="character-card">
+        {% if char.photo_paths %}
+        {% set first_photo = char.photo_paths[0].split('/')[-1] %}
+        <div class="character-card-photo">
+            <img src="{{ url_prefix }}/characters/{{ char.character_id }}/photo/{{ first_photo }}" alt="{{ char.name }}">
+        </div>
+        {% endif %}
+        <div class="character-card-info">
+            <div class="character-card-name">{{ char.name }}</div>
+            <div class="character-card-desc">{{ char.description[:80] }}{% if char.description|length > 80 %}...{% endif %}</div>
+            {% if char.photo_paths %}
+            <div class="character-card-meta">{{ char.photo_paths|length }} photo{{ 's' if char.photo_paths|length != 1 else '' }}</div>
+            {% endif %}
+        </div>
+        <div class="character-card-actions">
+            <a href="{{ url_prefix }}/characters?edit={{ char.character_id }}" class="btn btn-secondary btn-sm">Edit</a>
+            <form action="{{ url_prefix }}/characters/{{ char.character_id }}/delete" method="post" style="display:inline"
+                  onsubmit="return confirm('Delete {{ char.name }}? This cannot be undone.')">
+                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="character-empty-state">
+    <p>{% if tier.name == 'kids' %}No characters yet! Create your first one above!{% else %}No characters saved yet. Create your first character above!{% endif %}</p>
+</div>
+{% endif %}
+
+{% endblock %}

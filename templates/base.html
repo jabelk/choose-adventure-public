@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#f0c040">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>{% block title %}Choose Your Own Adventure{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="{{ tier.theme_class if tier else '' }}" data-tier="{{ tier.name if tier else '' }}" data-url-prefix="{{ url_prefix if url_prefix else '' }}">
+    <div class="install-banner" id="install-banner" style="display:none">
+        <span class="install-banner-text">Install this app for the best experience</span>
+        <button class="btn-install" onclick="installApp()">Install</button>
+        <button class="btn-dismiss" onclick="dismissInstallBanner()" title="Dismiss">&times;</button>
+    </div>
+    <div class="offline-indicator" id="offline-indicator" style="display:none">
+        You're offline &mdash; browsing cached content
+    </div>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+    <!-- Lightbox overlay -->
+    <div class="lightbox" id="lightbox">
+        <button class="lightbox-close" aria-label="Close">&times;</button>
+        <img class="lightbox-img" id="lightbox-img" src="" alt="">
+    </div>
+    <script src="/static/js/d3.v7.min.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/lightbox.js"></script>
+    {% block scripts %}{% endblock %}
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(function(reg) { console.log('SW registered:', reg.scope); })
+                .catch(function(err) { console.log('SW registration failed:', err); });
+        }
+        window.addEventListener('online', function() {
+            var el = document.getElementById('offline-indicator');
+            if (el) el.style.display = 'none';
+        });
+        window.addEventListener('offline', function() {
+            var el = document.getElementById('offline-indicator');
+            if (el) el.style.display = 'block';
+        });
+    </script>
+</body>
+</html>

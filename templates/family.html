@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Family - {{ tier.display_name }}{% endblock %}
+
+{% block content %}
+<div class="home-header">
+    <h1>My Family</h1>
+    <p>Save your family so they appear as characters in every story</p>
+    <a href="{{ url_prefix }}/" class="gallery-link">&larr; Back to Home</a>
+</div>
+
+{% if error %}
+<div class="flash-error">{{ error }}</div>
+{% endif %}
+{% if success %}
+<div class="flash-success">{{ success }}</div>
+{% endif %}
+
+{% if family and (family.children or family.parents) %}
+<div class="family-members-section">
+    <h2>Saved Family Members</h2>
+
+    {% if family.children %}
+    <div class="family-group">
+        <h3>Children</h3>
+        {% for child in family.children %}
+        <div class="family-member-card">
+            <div class="family-member-info">
+                <span class="family-member-name">{{ child.name }}</span>
+                <span class="family-member-detail">{{ child.gender }}, age {{ child.age }}</span>
+            </div>
+            <form action="{{ url_prefix }}/family/remove-child/{{ loop.index0 }}" method="post" style="display:inline"
+                  onsubmit="return confirm('Remove {{ child.name }}?')">
+                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if family.parents %}
+    <div class="family-group">
+        <h3>Parents</h3>
+        {% for parent in family.parents %}
+        <div class="family-member-card">
+            <div class="family-member-info">
+                <span class="family-member-name">{{ parent.name }}</span>
+            </div>
+            <form action="{{ url_prefix }}/family/remove-parent/{{ loop.index0 }}" method="post" style="display:inline"
+                  onsubmit="return confirm('Remove {{ parent.name }}?')">
+                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form action="{{ url_prefix }}/family/delete" method="post" class="family-delete-section"
+          onsubmit="return confirm('Delete your entire family profile? This cannot be undone.')">
+        <button type="submit" class="btn btn-danger">Delete Entire Family</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="family-form-section">
+    <h2>{% if family and (family.children or family.parents) %}Add More Members{% else %}Create Your Family{% endif %}</h2>
+    <form action="{{ url_prefix }}/family/save" method="post">
+
+        {% if not family or family.children | length < 6 %}
+        <div class="family-add-group">
+            <h3>Add a Child</h3>
+            <div class="family-add-row">
+                <div class="family-field">
+                    <label for="child_name" class="flavor-label">Name</label>
+                    <input type="text" id="child_name" name="child_name" maxlength="50" placeholder="e.g. Isla" class="text-input">
+                </div>
+                <div class="family-field">
+                    <label for="child_gender" class="flavor-label">Gender</label>
+                    <select id="child_gender" name="child_gender" class="text-input">
+                        <option value="girl">Girl</option>
+                        <option value="boy">Boy</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="family-field">
+                    <label for="child_age" class="flavor-label">Age</label>
+                    <input type="number" id="child_age" name="child_age" min="1" max="17" placeholder="5" class="text-input" style="width: 5rem;">
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="flash-error">Maximum of 6 children reached.</div>
+        {% endif %}
+
+        {% if not family or family.parents | length < 2 %}
+        <div class="family-add-group">
+            <h3>Add a Parent</h3>
+            <div class="family-add-row">
+                <div class="family-field">
+                    <label for="parent_name" class="flavor-label">Name</label>
+                    <input type="text" id="parent_name" name="parent_name" maxlength="50" placeholder="e.g. Dad" class="text-input">
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="flash-error">Maximum of 2 parents reached.</div>
+        {% endif %}
+
+        <div class="family-form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

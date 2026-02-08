@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="home-header">
+    <h1>{{ tier.display_name }} - Profiles</h1>
+    <p>Create and manage profiles to personalize your stories</p>
+    <a href="{{ url_prefix }}/" class="gallery-link">&larr; Back to Home</a>
+</div>
+
+{% if error %}
+<div class="flash-error">{{ error }}</div>
+{% endif %}
+
+<div class="profile-section">
+    <h2>Create New Profile</h2>
+    <form class="profile-form" action="{{ url_prefix }}/profiles/create" method="post">
+        <div class="profile-field">
+            <label for="name">Profile Name</label>
+            <input type="text" id="name" name="name" required maxlength="100" placeholder="e.g., Lily's Profile">
+        </div>
+        <div class="profile-field">
+            <label for="themes">Themes <span class="field-hint">(comma-separated)</span></label>
+            <textarea id="themes" name="themes" placeholder="dinosaurs, space, underwater, pirates" rows="2"></textarea>
+        </div>
+        <div class="profile-field">
+            <label for="art_style">Art Style</label>
+            <input type="text" id="art_style" name="art_style" maxlength="200" placeholder="e.g., bright watercolor, pixel art, oil painting">
+        </div>
+        <div class="profile-field">
+            <label for="tone">Tone</label>
+            <input type="text" id="tone" name="tone" maxlength="200" placeholder="e.g., silly and lighthearted, mysterious, epic">
+        </div>
+        <div class="profile-field">
+            <label for="story_elements">Story Elements <span class="field-hint">(comma-separated)</span></label>
+            <textarea id="story_elements" name="story_elements" placeholder="talking animals, treasure hunts, magic spells" rows="2"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Profile</button>
+    </form>
+</div>
+
+{% if profiles %}
+<div class="profile-section">
+    <h2>Your Profiles</h2>
+    <div class="profile-list">
+        {% for profile in profiles %}
+        <div class="profile-card">
+            <div class="profile-card-header">
+                <h3>{{ profile.name }}</h3>
+                <div class="profile-card-actions">
+                    <a href="{{ url_prefix }}/profiles/{{ profile.profile_id }}" class="btn btn-secondary btn-sm">Edit</a>
+                    <form action="{{ url_prefix }}/profiles/{{ profile.profile_id }}/delete" method="post" style="display:inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this profile?')">Delete</button>
+                    </form>
+                </div>
+            </div>
+            <div class="profile-card-body">
+                {% if profile.themes %}
+                <div class="profile-detail"><strong>Themes:</strong> {{ profile.themes | join(', ') }}</div>
+                {% endif %}
+                {% if profile.art_style %}
+                <div class="profile-detail"><strong>Art Style:</strong> {{ profile.art_style }}</div>
+                {% endif %}
+                {% if profile.tone %}
+                <div class="profile-detail"><strong>Tone:</strong> {{ profile.tone }}</div>
+                {% endif %}
+                {% if profile.story_elements %}
+                <div class="profile-detail"><strong>Story Elements:</strong> {{ profile.story_elements | join(', ') }}</div>
+                {% endif %}
+                <div class="profile-detail"><strong>Characters:</strong> {{ profile.characters | length }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="profile-section">
+    <p class="empty-state">No profiles yet. Create one above to get started!</p>
+</div>
+{% endif %}
+{% endblock %}

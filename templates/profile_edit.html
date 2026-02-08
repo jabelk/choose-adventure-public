@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="home-header">
+    <h1>Edit Profile: {{ profile.name }}</h1>
+    <a href="{{ url_prefix }}/profiles" class="gallery-link">&larr; Back to Profiles</a>
+</div>
+
+{% if error %}
+<div class="flash-error">{{ error }}</div>
+{% endif %}
+
+{% if warning %}
+<div class="flash-warning">{{ warning }}</div>
+{% endif %}
+
+<div class="profile-section">
+    <h2>Preferences</h2>
+    <form class="profile-form" action="{{ url_prefix }}/profiles/{{ profile.profile_id }}/update" method="post">
+        <div class="profile-field">
+            <label for="name">Profile Name</label>
+            <input type="text" id="name" name="name" required maxlength="100" value="{{ profile.name }}">
+        </div>
+        <div class="profile-field">
+            <label for="themes">Themes <span class="field-hint">(comma-separated)</span></label>
+            <textarea id="themes" name="themes" rows="2">{{ profile.themes | join(', ') }}</textarea>
+        </div>
+        <div class="profile-field">
+            <label for="art_style">Art Style</label>
+            <input type="text" id="art_style" name="art_style" maxlength="200" value="{{ profile.art_style }}">
+        </div>
+        <div class="profile-field">
+            <label for="tone">Tone</label>
+            <input type="text" id="tone" name="tone" maxlength="200" value="{{ profile.tone }}">
+        </div>
+        <div class="profile-field">
+            <label for="story_elements">Story Elements <span class="field-hint">(comma-separated)</span></label>
+            <textarea id="story_elements" name="story_elements" rows="2">{{ profile.story_elements | join(', ') }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+    </form>
+</div>
+
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}{{ story.title }} - Reader{% endblock %}
+
+{% block content %}
+<div class="reader-header">
+    <a href="{{ url_prefix }}/gallery" class="home-link">&larr; Gallery</a>
+    <span class="story-title">{{ story.title }}</span>
+    <span class="chapter">Chapter {{ scene.depth + 1 }} · {{ get_model_display_name(story.model) }} · {{ get_image_model_display_name(story.image_model) }}</span>
+</div>
+
+<div class="tree-map-container always-visible" id="tree-map-container"></div>
+
+<div class="scene-image-container" id="scene-image-container" data-prompt="{{ scene.image_prompt | e }}" data-regenerate-url="{{ url_prefix }}/gallery/{{ story.story_id }}/{{ scene_id }}/regenerate-image">
+    {% if scene.image_url %}
+    <img src="{{ scene.image_url }}" alt="Scene illustration">
+    {% else %}
+    <div class="image-fallback">Image unavailable</div>
+    {% endif %}
+</div>
+
+{% if scene.image_prompt %}
+<div class="coloring-page-section">
+    <button id="coloring-btn" class="btn-coloring" type="button">Coloring Page</button>
+    <div id="coloring-page-area"></div>
+</div>
+{% endif %}
+
+{% if scene.extra_image_urls %}
+{% for extra_url in scene.extra_image_urls %}
+<div class="extra-image-container">
+    <span class="extra-image-label">{% if loop.index0 == 0 %}Character Close-Up{% else %}Environment Wide Shot{% endif %}</span>
+    <img src="{{ extra_url }}" alt="{% if loop.index0 == 0 %}Character close-up{% else %}Environment wide shot{% endif %}">
+</div>
+{% endfor %}
+{% endif %}
+
+{% if scene.video_url %}
+<div class="scene-video">
+    <video controls playsinline preload="metadata">
+        <source src="{{ scene.video_url }}" type="video/mp4">
+    </video>
+</div>
+{% endif %}
+
+{% if tts_available %}
+<div class="scene-text" id="scene-text">{% for sentence in scene.content | regex_split('(?<=[.!?])\\s+') %}<span class="tts-sentence" data-index="{{ loop.index0 }}">{{ sentence }} </span>{% endfor %}</div>
+{% else %}
+<div class="scene-text" id="scene-text">{{ scene.content }}</div>
+{% endif %}
+
+{% if tts_available %}
+<div class="tts-controls">
+    <button id="tts-play-btn" class="tts-play-btn tts-idle" type="button" aria-label="Read aloud">
+        <span class="tts-icon">&#x1F50A;</span>
+    </button>
+    <select id="tts-voice-select" class="tts-voice-select" aria-label="Select voice">
+        {% for voice_id, voice_name in tts_voices %}
+        <option value="{{ voice_id }}"{% if voice_id == tts_current_voice %} selected{% endif %}>{{ voice_name }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% endif %}
+
+{% if scene.is_ending %}
+<div class="ending">
+    <h2>The End</h2>
+</div>
+{% endif %}
+
+{% if parent_story or sequel_stories %}
+<div class="sequel-chain-nav">
+    {% if parent_story %}
+    <div>Sequel of: <a href="{{ url_prefix }}/gallery/{{ parent_story.story_id }}">{{ parent_story.title }}</a></div>
+    {% endif %}
+    {% for sq in sequel_stories %}
+    <div>Continued in: <a href="{{ url_prefix }}/gallery/{{ sq.story_id }}">{{ sq.title }}</a></div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="reader-nav">
+    <a href="{{ url_prefix }}/gallery" class="btn btn-secondary">Back to Gallery</a>
+    <a href="{{ url_prefix }}/gallery/{{ story.story_id }}/continue" class="btn-continue-story">Continue Story</a>
+    <div class="export-buttons">
+        <a href="{{ url_prefix }}/gallery/{{ story.story_id }}/export/html" class="btn-export">Export HTML</a>
+        <a href="{{ url_prefix }}/gallery/{{ story.story_id }}/export/pdf" class="btn-export">Export PDF</a>
+    </div>
+    {% set ns = namespace(gallery_images=[]) %}
+    {% for sid in story.path_history %}
+        {% set sc = story.scenes[sid] if sid in story.scenes else None %}
+        {% if sc and sc.image_url %}
+            {% set ns.gallery_images = ns.gallery_images + [sc.image_url] %}
+            {% for extra_url in sc.extra_image_urls %}
+                {% set ns.gallery_images = ns.gallery_images + [extra_url] %}
+            {% endfor %}
+        {% endif %}
+    {% endfor %}
+    {% if ns.gallery_images | length > 0 %}
+    <button type="button" class="btn-image-gallery" id="image-gallery-btn">Image Gallery</button>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/tree-map.js"></script>
+<script src="/static/js/coloring-page.js"></script>
+<script src="/static/js/image-gallery.js"></script>
+<script src="/static/js/prompt-edit.js"></script>
+<script src="/static/js/ambiance.js"></script>
+<script>
+(function() {
+    var el = document.getElementById('scene-text');
+    if (el) {
+        initAmbiance({
+            sceneContent: el.textContent || '',
+            bedtimeMode: false
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var container = document.getElementById('scene-image-container');
+    if (container && container.getAttribute('data-prompt')) {
+        initPromptEdit({
+            container: container,
+            prompt: container.getAttribute('data-prompt'),
+            regenerateUrl: container.getAttribute('data-regenerate-url')
+        });
+    }
+})();
+</script>
+<script>
+    initColoringPage({
+        coloringUrl: {{ url_prefix | tojson }} + '/gallery/' + {{ story.story_id | tojson }} + '/' + {{ scene_id | tojson }} + '/coloring',
+        pdfUrl: {{ url_prefix | tojson }} + '/gallery/' + {{ story.story_id | tojson }} + '/' + {{ scene_id | tojson }} + '/coloring/pdf',
+        sceneHasPrompt: {{ (scene.image_prompt | length > 0) | tojson }}
+    });
+    (function() {
+        var galleryImages = [
+        {% for sid in story.path_history %}
+            {% set sc = story.scenes[sid] if sid in story.scenes else None %}
+            {% if sc and sc.image_url %}
+            {{ sc.image_url | tojson }},
+            {% for extra_url in sc.extra_image_urls %}
+            {{ extra_url | tojson }},
+            {% endfor %}
+            {% endif %}
+        {% endfor %}
+        ];
+        if (galleryImages.length > 0) {
+            var gallery = initImageGallery({ images: galleryImages, startIndex: 0 });
+            var btn = document.getElementById('image-gallery-btn');
+            if (btn) {
+                btn.addEventListener('click', function() { gallery.open(); });
+            }
+        }
+    })();
+</script>
+{% if tts_available %}
+<script src="/static/js/tts-player.js"></script>
+<script>
+    initTTSPlayer({
+        sceneId: {{ scene_id | tojson }},
+        urlPrefix: {{ url_prefix | tojson }},
+        ttsUrl: {{ url_prefix | tojson }} + '/gallery/tts/' + {{ story.story_id | tojson }} + '/' + {{ scene_id | tojson }},
+        autoplay: false
+    });
+</script>
+{% endif %}
+<script>
+    window.treeMapStoryId = {{ story.story_id | tojson }};
+    var treeData = {{ tree_data | tojson }};
+    var currentId = {{ scene_id | tojson }};
+    var urlPrefix = {{ url_prefix | tojson }};
+    renderTreeMap('tree-map-container', treeData, currentId, urlPrefix, 'gallery');
+</script>
+{% endblock %}

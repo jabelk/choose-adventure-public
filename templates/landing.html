@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Choose Your Adventure{% endblock %}
+
+{% block content %}
+<div class="landing-header">
+    <h1>Choose Your Adventure</h1>
+    <p>Pick your adventure style to begin</p>
+</div>
+
+<div class="tier-cards">
+    {% for t in tiers %}
+    <a href="/{{ t.prefix }}/" class="tier-card tier-card-{{ t.name }}">
+        <h2>{{ t.display_name }}</h2>
+        <p class="tier-desc">
+            {% if t.name == 'kids' %}
+            Fun, friendly stories for young adventurers ages 3-6. Bright illustrations and gentle narratives.
+            {% elif t.name == 'bible' %}
+            Interactive Bible stories from Genesis to Revelation. Faithful to scripture with warm, reverent illustrations for ages 3-8.
+            {% else %}
+            Stories for grown-ups. All genres, all themes, no limits.
+            {% endif %}
+        </p>
+        <span class="tier-cta">Enter &rarr;</span>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Continue: {{ story.title }}{% endblock %}
+
+{% block content %}
+<div class="home-header">
+    <h1>Continue Story</h1>
+    <p>Sequel to: <strong>{{ story.title }}</strong></p>
+    <a href="{{ url_prefix }}/gallery/{{ story.story_id }}" class="gallery-link">&larr; Back to Story</a>
+</div>
+
+<form class="prompt-form" action="{{ url_prefix }}/gallery/{{ story.story_id }}/continue" method="post">
+    <label for="sequel_prompt">Sequel Direction (optional)</label>
+    <textarea
+        id="sequel_prompt"
+        name="sequel_prompt"
+        placeholder="Where should the sequel go? e.g. 'This time they travel to Paris...'"
+        rows="3"
+    ></textarea>
+
+    <div class="length-selector">
+        <label class="section-label">Story Length</label>
+        <div class="length-options">
+            <label class="length-option">
+                <input type="radio" name="length" value="short" {% if story.length == 'short' %}checked{% endif %}>
+                <span class="option-card">
+                    <span class="option-name">Short</span>
+                    <span class="option-desc">~3 chapters, 5 min</span>
+                </span>
+            </label>
+            <label class="length-option">
+                <input type="radio" name="length" value="medium" {% if story.length == 'medium' %}checked{% endif %}>
+                <span class="option-card">
+                    <span class="option-name">Medium</span>
+                    <span class="option-desc">~5 chapters, 10-15 min</span>
+                </span>
+            </label>
+            <label class="length-option">
+                <input type="radio" name="length" value="long" {% if story.length == 'long' %}checked{% endif %}>
+                <span class="option-card">
+                    <span class="option-name">Long</span>
+                    <span class="option-desc">~7 chapters, 20+ min</span>
+                </span>
+            </label>
+        </div>
+    </div>
+
+    {% if available_models %}
+    <div class="model-selector">
+        <label class="section-label">AI Model</label>
+        <div class="model-options">
+            {% for m in available_models %}
+            <label class="model-option">
+                <input type="radio" name="model" value="{{ m.key }}" {% if m.key == default_model %}checked{% endif %}>
+                <span class="option-card">
+                    <span class="option-name">{{ m.display_name }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if available_image_models|length > 1 %}
+    <div class="model-selector">
+        <label class="section-label">Image Model</label>
+        {% set ns = namespace(current_provider='') %}
+        {% for img_model in available_image_models %}
+        {% if img_model.provider != ns.current_provider %}
+        {% if ns.current_provider != '' %}</div>{% endif %}
+        {% set ns.current_provider = img_model.provider %}
+        <div class="model-group">
+            <span class="model-group-label">{{ img_model.provider }}</span>
+        {% endif %}
+            <label class="model-option">
+                <input type="radio" name="image_model" value="{{ img_model.key }}" {% if img_model.key == default_image_model %}checked{% endif %}>
+                <span class="option-card">
+                    <span class="option-name">{{ img_model.display_name }}</span>
+                </span>
+            </label>
+        {% endfor %}
+        {% if ns.current_provider != '' %}</div>{% endif %}
+    </div>
+    {% elif available_image_models|length == 1 %}
+    <input type="hidden" name="image_model" value="{{ available_image_models[0].key }}">
+    {% endif %}
+
+    {% if art_styles %}
+    <div class="model-selector">
+        <label class="section-label">Art Style</label>
+        {% set ns_art = namespace(current_category='') %}
+        {% for style in art_styles %}
+        {% if style.category != ns_art.current_category %}
+        {% if ns_art.current_category != '' %}</div>{% endif %}
+        {% set ns_art.current_category = style.category %}
+        <div class="model-group">
+            <span class="model-group-label">{{ style.category }}</span>
+        {% endif %}
+            <label class="model-option">
+                <input type="radio" name="art_style" value="{{ style.key }}" {% if style.key == default_art_style %}checked{% endif %}>
+                <span class="option-card">
+                    <span class="option-name">{{ style.display_name }}</span>
+                </span>
+            </label>
+        {% endfor %}
+        {% if ns_art.current_category != '' %}</div>{% endif %}
+    </div>
+    {% endif %}
+
+
+    {% if story.character_name %}
+    <div class="character-fields">
+        <label class="section-label">Character</label>
+        <p class="upload-hint">{{ story.character_name }}{% if story.character_description %} — {{ story.character_description }}{% endif %}</p>
+    </div>
+    {% endif %}
+
+    <div class="btn-row">
+        <button type="submit" class="btn btn-primary">Start Sequel</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

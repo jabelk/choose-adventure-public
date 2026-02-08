@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Something went wrong{% endblock %}
+
+{% block content %}
+<div class="error-page">
+    <h1>Something went wrong</h1>
+    <p>{{ error_message or "An error occurred while generating your story. Please try again." }}</p>
+    <div class="error-actions">
+        {% if retry_url %}
+        <a href="{{ retry_url }}" class="btn btn-primary">Try Again</a>
+        {% endif %}
+        <a href="{{ url_prefix }}/" class="btn btn-secondary">Start Over</a>
+    </div>
+</div>
+{% endblock %}

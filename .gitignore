@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+dist/
+
+# Node
+node_modules/
+dist/
+build/
+
+# Go
+*.exe
+*.test
+vendor/
+
+# Rust
+target/
+*.rs.bk
+
+# Generated content
+static/images/
+static/videos/
+data/stories/
+data/progress/
+data/profiles/
+data/photos/
+data/uploads/
+data/chats/
+data/chat_progress/
+data/characters/
+data/family/
+
+# Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.env
+.env.*
+!.env.example

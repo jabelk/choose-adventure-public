@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ story.title }}</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: Georgia, 'Times New Roman', serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    line-height: 1.7;
+    min-height: 100vh;
+}
+.container { max-width: 800px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+/* Header */
+.export-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #2a2a4a;
+}
+.export-header h1 { font-size: 2rem; color: #f0c040; margin-bottom: 0.5rem; }
+.export-meta { color: #a0a0b0; font-size: 0.9rem; font-style: italic; }
+.export-prompt { color: #a0a0b0; margin-top: 0.5rem; font-size: 0.95rem; }
+
+/* Navigation panel */
+.nav-panel {
+    background: #16213e;
+    border: 1px solid #2a2a4a;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+}
+.nav-panel h2 { font-size: 1.1rem; color: #f0c040; margin-bottom: 0.75rem; }
+.nav-list { list-style: none; }
+.nav-list li { margin-bottom: 0.25rem; }
+.nav-link {
+    color: #a0a0b0;
+    text-decoration: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    display: inline-block;
+    transition: all 0.15s ease;
+}
+.nav-link:hover { color: #f0c040; background: rgba(240, 192, 64, 0.1); }
+.nav-link.active { color: #f0c040; font-weight: bold; }
+.nav-branch-label {
+    display: block;
+    margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.8rem;
+    color: #606080;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Scene */
+.scene { display: none; }
+.scene.visible { display: block; }
+.scene-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+.scene-heading h2 { font-size: 1.4rem; color: #f0c040; }
+.scene-branch-tag {
+    font-size: 0.75rem;
+    color: #606080;
+    background: #16213e;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    border: 1px solid #2a2a4a;
+}
+.scene-image {
+    width: 100%;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    display: block;
+}
+.scene-text {
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
+    white-space: pre-line;
+}
+.scene-choices { margin-bottom: 1rem; }
+.scene-choices h3 { font-size: 0.9rem; color: #606080; margin-bottom: 0.5rem; }
+.scene-choices ul { list-style: none; padding-left: 0; }
+.scene-choices li {
+    padding: 0.4rem 0;
+    color: #a0a0b0;
+    font-size: 0.95rem;
+}
+.scene-choices li::before { content: "→ "; color: #f0c040; }
+.scene-ending {
+    text-align: center;
+    padding: 1.5rem 0;
+    color: #f0c040;
+    font-size: 1.5rem;
+}
+
+/* Scene navigation buttons */
+.scene-nav {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #2a2a4a;
+}
+.scene-nav button {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid #2a2a4a;
+    border-radius: 8px;
+    color: #a0a0b0;
+    font-family: Georgia, serif;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.scene-nav button:hover { border-color: #f0c040; color: #f0c040; }
+
+/* Footer */
+.export-footer {
+    text-align: center;
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid #2a2a4a;
+    color: #606080;
+    font-size: 0.8rem;
+}
+
+@media (max-width: 600px) {
+    .container { padding: 1rem; }
+    .export-header h1 { font-size: 1.5rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="export-header">
+        <h1>{{ story.title }}</h1>
+        <div class="export-meta">
+            {{ story.completed_at.strftime('%B %d, %Y') }}
+        </div>
+        <div class="export-prompt">"{{ story.prompt }}"</div>
+    </div>
+
+    <div class="nav-panel">
+        <h2>Story Map</h2>
+        <ul class="nav-list">
+            {% set ns = namespace(current_branch='') %}
+            {% for item in scenes_data %}
+            {% if item.branch_label != ns.current_branch %}
+                {% if item.branch_label %}
+                <li><span class="nav-branch-label">{{ item.branch_label }}</span></li>
+                {% endif %}
+                {% set ns.current_branch = item.branch_label %}
+            {% endif %}
+            <li>
+                <a class="nav-link" data-target="{{ item.scene_id }}"
+                   onclick="showScene('{{ item.scene_id }}')">
+                    Chapter {{ item.chapter_num }}{% if item.scene.is_ending %} (Ending){% endif %}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    {% for item in scenes_data %}
+    <div class="scene" id="scene-{{ item.scene_id }}">
+        <div class="scene-heading">
+            <h2>Chapter {{ item.chapter_num }}</h2>
+            {% if item.branch_label %}
+            <span class="scene-branch-tag">{{ item.branch_label }}</span>
+            {% endif %}
+        </div>
+
+        <img class="scene-image" src="{{ item.image_data_uri }}" alt="Chapter {{ item.chapter_num }} illustration">
+
+        <div class="scene-text">{{ item.scene.content }}</div>
+
+        {% if item.scene.is_ending %}
+        <div class="scene-ending">The End</div>
+        {% endif %}
+
+        {% if item.scene.choices %}
+        <div class="scene-choices">
+            <h3>Choices:</h3>
+            <ul>
+                {% for choice in item.scene.choices %}
+                <li>{{ choice.text }}{% if choice.next_scene_id %} (explored){% endif %}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="scene-nav">
+            {% if not loop.first %}
+            <button onclick="showScene('{{ scenes_data[loop.index0 - 1].scene_id }}')">&#8592; Previous</button>
+            {% endif %}
+            {% if not loop.last %}
+            <button onclick="showScene('{{ scenes_data[loop.index0 + 1].scene_id }}')">Next &#8594;</button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="export-footer">
+        Exported from Choose Your Own Adventure
+    </div>
+</div>
+
+<script>
+(function() {
+    var scenes = document.querySelectorAll('.scene');
+    var links = document.querySelectorAll('.nav-link');
+
+    window.showScene = function(id) {
+        scenes.forEach(function(s) { s.classList.remove('visible'); });
+        links.forEach(function(l) { l.classList.remove('active'); });
+
+        var target = document.getElementById('scene-' + id);
+        if (target) {
+            target.classList.add('visible');
+            target.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }
+
+        links.forEach(function(l) {
+            if (l.getAttribute('data-target') === id) {
+                l.classList.add('active');
+            }
+        });
+    };
+
+    // Show first scene by default
+    if (scenes.length > 0) {
+        scenes[0].classList.add('visible');
+        if (links.length > 0) links[0].classList.add('active');
+    }
+})();
+</script>
+</body>
+</html>
