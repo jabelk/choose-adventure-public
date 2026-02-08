@@ -5,6 +5,10 @@ Mocks all external AI services so tests run fast without API keys.
 import io
 import os
 import shutil
+import socket
+import subprocess
+import sys
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -159,6 +163,101 @@ def start_story_with_photo(client, tier="kids", prompt="A test adventure", **ext
     files = {"reference_photos": ("test.jpg", io.BytesIO(photo_bytes), "image/jpeg")}
     resp = client.post(f"/{tier}/story/start", data=form_data, files=files)
     return resp
+
+
+def _find_free_port():
+    """Find a free TCP port on localhost."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@pytest.fixture(scope="session")
+def live_server():
+    """Start a live uvicorn server for browser tests.
+
+    Launches the real app on a random port and waits until it's ready.
+    """
+    port = _find_free_port()
+    env = os.environ.copy()
+    env.setdefault("ANTHROPIC_API_KEY", "test-key")
+    env.setdefault("OPENAI_API_KEY", "test-key")
+
+    proc = subprocess.Popen(
+        [
+            sys.executable, "-m", "uvicorn",
+            "app.main:app",
+            "--host", "127.0.0.1",
+            "--port", str(port),
+        ],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    # Wait for server to be ready (up to 10s)
+    url = f"http://127.0.0.1:{port}"
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                break
+        except OSError:
+            time.sleep(0.2)
+    else:
+        proc.kill()
+        raise RuntimeError(f"Live server failed to start on port {port}")
+
+    yield url
+
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def _find_chrome_binary():
+    """Find a Chrome-compatible browser binary (Chrome or Brave)."""
+    candidates = [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+        # Linux paths
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/brave-browser",
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+@pytest.fixture(scope="session")
+def browser():
+    """Create a headless Chrome-compatible WebDriver for browser tests.
+
+    Supports Chrome and Brave Browser.  Relies on Selenium 4.10+'s built-in
+    driver manager (SeleniumManager) to auto-download the correct ChromeDriver.
+    """
+    from selenium import webdriver
+
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1280,1024")
+
+    chrome_bin = _find_chrome_binary()
+    if chrome_bin:
+        options.binary_location = chrome_bin
+
+    driver = webdriver.Chrome(options=options)
+    driver.implicitly_wait(5)
+
+    yield driver
+
+    driver.quit()
 
 
 def extract_scene_id(redirect_url):

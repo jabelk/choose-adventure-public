@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+markers = [
+    "browser: Selenium browser tests (require Chrome/ChromeDriver)",
+]

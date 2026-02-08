@@ -39,6 +39,15 @@ function selectTemplate(card) {
     // Pre-fill form
     prompt.value = card.dataset.prompt || '';
 
+    // Override prompt with scripture reference for Bible templates
+    var scriptureRef = card.dataset.scriptureReference;
+    if (scriptureRef) {
+        var bibleMode = document.querySelector('input[name="bible_reference_mode"]');
+        if (bibleMode) {
+            prompt.value = scriptureRef;
+        }
+    }
+
     var length = card.dataset.length || 'medium';
     var lengthRadio = document.querySelector('input[name="length"][value="' + length + '"]');
     if (lengthRadio) lengthRadio.checked = true;

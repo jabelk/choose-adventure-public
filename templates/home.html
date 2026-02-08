@@ -52,7 +52,7 @@
         </summary>
         <div class="template-grid bible-section-content">
             {% for tpl in section_templates %}
-            <div class="template-card" data-template-index="{{ loop.index0 }}" onclick="selectTemplate(this)" data-prompt="{{ tpl.prompt }}" data-length="{{ tpl.length }}" data-kinks="{{ tpl.kinks | tojson }}" data-conflict-type="{{ tpl.conflict_type }}" data-character-names="{{ tpl.character_names | tojson }}" data-character-data="{{ tpl.character_data | tojson }}">
+            <div class="template-card" data-template-index="{{ loop.index0 }}" onclick="selectTemplate(this)" data-prompt="{{ tpl.prompt }}" data-length="{{ tpl.length }}" data-kinks="{{ tpl.kinks | tojson }}" data-conflict-type="{{ tpl.conflict_type }}" data-character-names="{{ tpl.character_names | tojson }}" data-character-data="{{ tpl.character_data | tojson }}" {% if tpl.scripture_reference %}data-scripture-reference="{{ tpl.scripture_reference }}"{% endif %}>
                 <div class="template-card-emoji">{{ tpl.emoji }}</div>
                 <div class="template-card-title">{{ tpl.title }}</div>
                 <div class="template-card-desc">{{ tpl.description }}</div>
