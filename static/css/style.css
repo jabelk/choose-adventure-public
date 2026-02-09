@@ -554,6 +554,38 @@ p {
     display: block;
 }
 
+/* Reference indicator for visual consistency */
+.reference-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.reference-indicator-badge {
+    background: var(--bg-secondary);
+    padding: 0.25rem 0.6rem;
+    border-radius: 1rem;
+    border: 1px solid var(--border-color);
+}
+
+.btn-reset-appearance {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.2rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.btn-reset-appearance:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
 .scene-text {
     font-size: 1.1rem;
     margin-bottom: 2rem;

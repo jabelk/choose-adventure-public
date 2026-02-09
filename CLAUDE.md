@@ -135,6 +135,8 @@ This project uses [GitHub Spec Kit](https://github.com/github/spec-kit). The wor
 - N/A — templates hardcoded in Python, verse text fetched at runtime from Bible API (036-bible-story-tier)
 - Python 3.11+ (existing project) + FastAPI, Jinja2, Pydantic (all existing — no new dependencies) (042-character-depth)
 - JSON flat files in `data/characters/{tier}/{character_id}.json` (extends existing character storage) (042-character-depth)
+- Python 3.11+ (existing project) + FastAPI, Pydantic, openai SDK, google-genai SDK, httpx (all existing — no new dependencies) (043-visual-consistency)
+- In-memory session (Story model field) — no new disk storage (043-visual-consistency)
 
 ## Recent Changes
 <!-- Updated automatically by spec-kit during /speckit.plan -->

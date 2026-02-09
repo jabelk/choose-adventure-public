@@ -177,6 +177,7 @@ class Story(BaseModel):
     profile_id: Optional[str] = None
     roster_character_ids: list[str] = Field(default_factory=list)
     reference_photo_paths: list[str] = Field(default_factory=list)
+    generated_reference_path: str = Field(default="")
     parent_story_id: Optional[str] = None
     sequel_context: str = ""
     created_at: datetime = Field(default_factory=datetime.now)

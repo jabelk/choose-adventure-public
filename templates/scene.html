@@ -36,6 +36,17 @@
     {% endif %}
 </div>
 
+{% if has_reference_images %}
+<div class="reference-indicator">
+    <span class="reference-indicator-badge">&#x1F4F7; Visual consistency active</span>
+    {% if has_generated_reference %}
+    <form method="post" action="{{ url_prefix }}/story/reset-appearance" style="display:inline">
+        <button type="submit" class="btn-reset-appearance">Reset appearance</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if scene.extra_images %}
 {% for extra_img in scene.extra_images %}
 <div class="extra-image-container" id="extra-image-{{ loop.index0 }}" data-scene-id="{{ scene.scene_id }}" data-index="{{ loop.index0 }}">

@@ -135,6 +135,51 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             return None
         return get_session(session_id)
 
+    def _build_reference_images(story_session: StorySession) -> list[str] | None:
+        """Build the reference image list for image generation.
+
+        Priority: direct uploads > roster character photos > generated scene reference.
+        Capped at 3 total images.
+        """
+        story = story_session.story
+
+        # Direct uploads take highest priority
+        if story.reference_photo_paths:
+            return story.reference_photo_paths[:3] or None
+
+        refs: list[str] = []
+        # Collect roster character photos
+        for rc_id in story.roster_character_ids:
+            rc = character_service.get_character(tier_config.name, rc_id)
+            if rc:
+                rc_photos = character_service.get_absolute_photo_paths(rc)
+                for rp in rc_photos:
+                    if len(refs) < 3:
+                        refs.append(rp)
+
+        # Append generated scene reference if available and file exists
+        if story.generated_reference_path:
+            gen_path = Path(story.generated_reference_path)
+            if gen_path.exists() and len(refs) < 3:
+                refs.append(str(gen_path))
+
+        return refs or None
+
+    async def _generate_and_track_reference(
+        image: Image, scene_id: str, image_model: str,
+        reference_images: list[str] | None, story: Story,
+    ) -> None:
+        """Wrapper around generate_image that updates the rolling reference on success."""
+        await image_service.generate_image(
+            image, scene_id, image_model,
+            reference_images=reference_images,
+        )
+        if image.status == ImageStatus.COMPLETE:
+            from app.services.image import STATIC_IMAGES_DIR
+            gen_path = STATIC_IMAGES_DIR / f"{scene_id}.png"
+            if gen_path.exists():
+                story.generated_reference_path = str(gen_path)
+
     def _get_session_id(request: Request) -> str | None:
         return request.cookies.get(session_cookie)
 
@@ -555,16 +600,17 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                     logger.warning(f"Upload validation failed: {upload_err}")
                     # Continue without reference photos rather than failing the story
 
+            ref_images = _build_reference_images(story_session)
             asyncio.create_task(
-                image_service.generate_image(
+                _generate_and_track_reference(
                     image, scene.scene_id, image_model,
-                    reference_images=photo_paths or None,
+                    ref_images, story,
                 )
             )
 
             # Picture book mode: generate extra images for young ages
             if is_picture_book_age(protagonist_age):
-                _setup_extra_images(scene, scene_data["image_prompt"], image_model, photo_paths)
+                _setup_extra_images(scene, scene_data["image_prompt"], image_model, ref_images or [])
 
             if story.video_mode:
                 asyncio.create_task(
@@ -773,16 +819,18 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             story_session.navigate_forward(scene)
             session_id = create_session(story_session)
 
+            ref_images = _build_reference_images(story_session)
             asyncio.create_task(
-                image_service.generate_image(
+                _generate_and_track_reference(
                     image, scene.scene_id, image_model,
+                    ref_images, story,
                 )
             )
 
             # Picture book mode for young ages
             protagonist_age = flavor_selections.get("protagonist_age", "")
             if is_picture_book_age(protagonist_age):
-                _setup_extra_images(scene, scene_data["image_prompt"], image_model, [])
+                _setup_extra_images(scene, scene_data["image_prompt"], image_model, ref_images or [])
 
             if scene.is_ending:
                 gallery_service.save_story(story_session)
@@ -857,6 +905,8 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 "tts_current_voice": request.cookies.get(f"tts_voice_{tier_config.prefix}", tier_config.tts_default_voice),
                 "tts_autoplay": request.cookies.get(f"tts_autoplay_{tier_config.prefix}", str(tier_config.tts_autoplay_default).lower()),
                 "bedtime_mode": story_session.story.bedtime_mode,
+                "has_reference_images": bool(_build_reference_images(story_session)),
+                "has_generated_reference": bool(story_session.story.generated_reference_path),
             }),
         )
 
@@ -890,6 +940,20 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         update_session(session_id, story_session)
         return RedirectResponse(
             url=f"{url_prefix}/story/scene/{scene_id}", status_code=303
+        )
+
+    @router.post("/story/reset-appearance")
+    async def reset_appearance(request: Request):
+        """Clear generated scene reference images for intentional appearance changes."""
+        story_session = _get_story_session(request)
+        session_id = _get_session_id(request)
+        if not story_session or not session_id:
+            return RedirectResponse(url=f"{url_prefix}/", status_code=303)
+        story_session.story.generated_reference_path = ""
+        update_session(session_id, story_session)
+        current_scene_id = story_session.story.current_scene_id
+        return RedirectResponse(
+            url=f"{url_prefix}/story/scene/{current_scene_id}", status_code=303
         )
 
     @router.post("/story/choose/{scene_id}/{choice_id}")
@@ -1041,10 +1105,11 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             story_session.navigate_forward(new_scene)
             update_session(session_id, story_session)
 
+            ref_images = _build_reference_images(story_session)
             asyncio.create_task(
-                image_service.generate_image(
+                _generate_and_track_reference(
                     new_image, new_scene.scene_id, story_session.story.image_model,
-                    reference_images=choice_photo_paths or None,
+                    ref_images, story_session.story,
                 )
             )
 
@@ -1052,7 +1117,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             if is_picture_book_age(story_session.story.protagonist_age):
                 _setup_extra_images(
                     new_scene, scene_data["image_prompt"],
-                    story_session.story.image_model, choice_photo_paths,
+                    story_session.story.image_model, ref_images or [],
                 )
 
             if story_session.story.video_mode:
@@ -1221,10 +1286,11 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             story_session.navigate_forward(new_scene)
             update_session(session_id, story_session)
 
+            ref_images = _build_reference_images(story_session)
             asyncio.create_task(
-                image_service.generate_image(
+                _generate_and_track_reference(
                     new_image, new_scene.scene_id, story_session.story.image_model,
-                    reference_images=choice_photo_paths or None,
+                    ref_images, story_session.story,
                 )
             )
 
@@ -1232,7 +1298,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             if is_picture_book_age(story_session.story.protagonist_age):
                 _setup_extra_images(
                     new_scene, scene_data["image_prompt"],
-                    story_session.story.image_model, choice_photo_paths,
+                    story_session.story.image_model, ref_images or [],
                 )
 
             if story_session.story.video_mode:
@@ -1380,10 +1446,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         image.url = None
         image.error = None
 
-        # Start new background generation
+        # Start new background generation with reference images
+        ref_images = _build_reference_images(story_session)
         asyncio.create_task(
-            image_service.generate_image(
-                image, scene_id, story_session.story.image_model
+            _generate_and_track_reference(
+                image, scene_id, story_session.story.image_model,
+                ref_images, story_session.story,
             )
         )
 
@@ -1424,10 +1492,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         image.url = None
         image.error = None
 
-        # Start new background generation
+        # Start new background generation with reference images
+        ref_images = _build_reference_images(story_session)
         asyncio.create_task(
-            image_service.generate_image(
-                image, scene_id, story_session.story.image_model
+            _generate_and_track_reference(
+                image, scene_id, story_session.story.image_model,
+                ref_images, story_session.story,
             )
         )
 
@@ -2505,9 +2575,11 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             story_session.navigate_forward(scene)
             session_id = create_session(story_session)
 
+            ref_images = _build_reference_images(story_session)
             asyncio.create_task(
-                image_service.generate_image(
+                _generate_and_track_reference(
                     image, scene.scene_id, effective_image_model,
+                    ref_images, story,
                 )
             )
 
