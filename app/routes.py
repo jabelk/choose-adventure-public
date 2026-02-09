@@ -285,8 +285,8 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         request: Request,
         prompt: str = Form(...),
         length: str = Form("medium"),
-        model: str = Form("claude"),
-        image_model: str = Form("gpt-image-1"),
+        model: str = Form(None),
+        image_model: str = Form(None),
         art_style: str = Form("none"),
         protagonist_gender: str = Form(""),
         protagonist_age: str = Form(""),
@@ -309,6 +309,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         bible_reference_mode: str = Form(""),
     ):
         """Start a new story within this tier."""
+        # Fall back to tier defaults if not provided
+        if not model:
+            model = tier_config.default_model
+        if not image_model:
+            image_model = tier_config.default_image_model
+
         if not prompt or not prompt.strip():
             return RedirectResponse(
                 url=f"{url_prefix}/?error=Please+describe+your+adventure!",
