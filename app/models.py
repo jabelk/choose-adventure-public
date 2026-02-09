@@ -43,14 +43,18 @@ class Tone(str, Enum):
     INTENSE = "intense"
 
 
+SCENES_PER_CHAPTER = 5  # Number of scenes per chapter in epic stories
+
+
 class StoryLength(str, Enum):
     SHORT = "short"
     MEDIUM = "medium"
     LONG = "long"
+    EPIC = "epic"
 
     @property
     def target_depth(self) -> int:
-        return {"short": 3, "medium": 5, "long": 7}[self.value]
+        return {"short": 3, "medium": 5, "long": 7, "epic": 25}[self.value]
 
     @property
     def description(self) -> str:
@@ -58,6 +62,7 @@ class StoryLength(str, Enum):
             "short": "Quick 5-minute story (~3 chapters)",
             "medium": "Standard 10-15 minute story (~5 chapters)",
             "long": "Extended 20+ minute story (~7 chapters)",
+            "epic": "Epic saga (~5 chapters, ~25 scenes)",
         }[self.value]
 
 
@@ -87,6 +92,8 @@ class Scene(BaseModel):
     choices: list[Choice] = Field(default_factory=list)
     is_ending: bool = False
     depth: int = 0
+    chapter_number: Optional[int] = None
+    chapter_title: Optional[str] = None
 
 
 class Character(BaseModel):
@@ -261,6 +268,8 @@ class SavedScene(BaseModel):
     choices: list[SavedChoice] = Field(default_factory=list)
     is_ending: bool = False
     depth: int = 0
+    chapter_number: Optional[int] = None
+    chapter_title: Optional[str] = None
 
 
 class SavedStory(BaseModel):

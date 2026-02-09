@@ -6,10 +6,34 @@
 <div class="reader-header">
     <a href="{{ url_prefix }}/gallery" class="home-link">&larr; Gallery</a>
     <span class="story-title">{{ story.title }}</span>
-    <span class="chapter">Chapter {{ scene.depth + 1 }} · {{ get_model_display_name(story.model) }} · {{ get_image_model_display_name(story.image_model) }}</span>
+    <span class="chapter">{% if story.length == 'epic' %}Ch. {{ ((scene.depth // 5) + 1) }} · Scene {{ scene.depth + 1 }}{% else %}Chapter {{ scene.depth + 1 }}{% endif %} · {{ get_model_display_name(story.model) }} · {{ get_image_model_display_name(story.image_model) }}</span>
 </div>
 
+{% if story.length == 'epic' %}
+{% set ns_chapters = namespace(items=[]) %}
+{% for sid in story.path_history %}
+    {% set sc = story.scenes[sid] if sid in story.scenes else None %}
+    {% if sc and sc.chapter_number and sc.chapter_title %}
+        {% set ns_chapters.items = ns_chapters.items + [{"number": sc.chapter_number, "title": sc.chapter_title, "scene_id": sid}] %}
+    {% endif %}
+{% endfor %}
+{% if ns_chapters.items | length > 1 %}
+<nav class="chapter-jump-nav">
+    {% for ch in ns_chapters.items %}
+    <a href="{{ url_prefix }}/gallery/{{ story.story_id }}/{{ ch.scene_id }}" class="chapter-jump-link{% if ch.scene_id == scene_id %} active{% endif %}">Ch. {{ ch.number }}: {{ ch.title }}</a>
+    {% endfor %}
+</nav>
+{% endif %}
+{% endif %}
+
 <div class="tree-map-container always-visible" id="tree-map-container"></div>
+
+{% if scene.chapter_number and scene.chapter_title %}
+<div class="chapter-title-card">
+    <span class="chapter-number">Chapter {{ scene.chapter_number }}</span>
+    <span class="chapter-title-text">{{ scene.chapter_title }}</span>
+</div>
+{% endif %}
 
 <div class="scene-image-container" id="scene-image-container" data-prompt="{{ scene.image_prompt | e }}" data-regenerate-url="{{ url_prefix }}/gallery/{{ story.story_id }}/{{ scene_id }}/regenerate-image">
     {% if scene.image_url %}

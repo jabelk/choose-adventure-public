@@ -65,6 +65,8 @@ class GalleryService:
                 ],
                 is_ending=scene.is_ending,
                 depth=scene.depth,
+                chapter_number=scene.chapter_number,
+                chapter_title=scene.chapter_title,
             )
 
         saved = SavedStory(
@@ -216,21 +218,21 @@ class GalleryService:
             logger.error(f"Failed to update story {saved.story_id}: {e}")
             raise
 
-    def save_progress(self, tier_name: str, story_session: StorySession) -> None:
+    def save_progress(self, tier_name: str, story_session: StorySession, suffix: str = "") -> None:
         """Save an in-progress story session to disk."""
-        filepath = PROGRESS_DIR / f"{tier_name}.json"
+        filepath = PROGRESS_DIR / f"{tier_name}{suffix}.json"
         try:
             filepath.write_text(
                 story_session.model_dump_json(indent=2),
                 encoding="utf-8",
             )
-            logger.info(f"Saved progress for tier {tier_name}")
+            logger.info(f"Saved progress for tier {tier_name}{suffix}")
         except Exception as e:
-            logger.error(f"Failed to save progress for tier {tier_name}: {e}")
+            logger.error(f"Failed to save progress for tier {tier_name}{suffix}: {e}")
 
-    def load_progress(self, tier_name: str) -> StorySession | None:
+    def load_progress(self, tier_name: str, suffix: str = "") -> StorySession | None:
         """Load an in-progress story session from disk."""
-        filepath = PROGRESS_DIR / f"{tier_name}.json"
+        filepath = PROGRESS_DIR / f"{tier_name}{suffix}.json"
         if not filepath.exists():
             return None
 
@@ -238,19 +240,19 @@ class GalleryService:
             data = json.loads(filepath.read_text(encoding="utf-8"))
             return StorySession.model_validate(data)
         except Exception as e:
-            logger.warning(f"Corrupted progress file for tier {tier_name}: {e}")
-            self.delete_progress(tier_name)
+            logger.warning(f"Corrupted progress file for tier {tier_name}{suffix}: {e}")
+            self.delete_progress(tier_name, suffix=suffix)
             return None
 
-    def delete_progress(self, tier_name: str) -> None:
+    def delete_progress(self, tier_name: str, suffix: str = "") -> None:
         """Delete the in-progress save file for a tier."""
-        filepath = PROGRESS_DIR / f"{tier_name}.json"
+        filepath = PROGRESS_DIR / f"{tier_name}{suffix}.json"
         if filepath.exists():
             try:
                 filepath.unlink()
-                logger.info(f"Deleted progress for tier {tier_name}")
+                logger.info(f"Deleted progress for tier {tier_name}{suffix}")
             except Exception as e:
-                logger.error(f"Failed to delete progress for tier {tier_name}: {e}")
+                logger.error(f"Failed to delete progress for tier {tier_name}{suffix}: {e}")
 
     def update_sequel_link(self, parent_story_id: str, sequel_story_id: str) -> None:
         """Add a sequel's ID to the parent story's sequel_story_ids list."""

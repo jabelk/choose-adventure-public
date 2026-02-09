@@ -1196,6 +1196,107 @@ p {
     background: linear-gradient(transparent, rgba(60,40,10,0.75));
 }
 
+/* Chapter title card */
+.chapter-title-card {
+    text-align: center;
+    padding: 1.5rem 1rem;
+    margin: 0.5rem 0 1rem;
+    border-top: 2px solid var(--border);
+    border-bottom: 2px solid var(--border);
+}
+.chapter-number {
+    display: block;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+.chapter-title-text {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.theme-kids .chapter-title-card {
+    border-color: var(--accent);
+}
+.theme-kids .chapter-title-text {
+    color: var(--accent);
+}
+.theme-bible .chapter-title-card {
+    border-color: #b8860b;
+}
+.theme-bible .chapter-title-text {
+    color: #b8860b;
+}
+.theme-adult .chapter-title-card {
+    border-color: var(--accent);
+}
+
+/* Chapter resume banner */
+.chapter-resume-banner {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+.chapter-resume-info h3 {
+    margin: 0 0 0.15rem;
+    font-size: 1rem;
+}
+.chapter-resume-info p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+.chapter-resume-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+/* Chapter badge on gallery cards */
+.chapter-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: var(--accent);
+    color: #fff;
+    margin-left: 0.25rem;
+    vertical-align: middle;
+}
+
+/* Reader chapter jump nav */
+.chapter-jump-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0;
+}
+.chapter-jump-link {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    text-decoration: none;
+    cursor: pointer;
+}
+.chapter-jump-link:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+
 .story-card-placeholder {
     width: 100%;
     height: 100%;

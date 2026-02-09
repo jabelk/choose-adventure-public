@@ -11,6 +11,21 @@
 </div>
 
 
+{% if resume_chapter %}
+<div class="chapter-resume-banner">
+    <div class="chapter-resume-info">
+        <h3>Continue Chapter {{ resume_chapter.chapter_number }}?</h3>
+        <p>{{ resume_chapter.title }} &middot; {{ resume_chapter.scene_count }} scenes so far</p>
+    </div>
+    <div class="chapter-resume-actions">
+        <a href="{{ url_prefix }}/story/resume-chapter" class="btn btn-primary">Continue</a>
+        <form action="{{ url_prefix }}/story/abandon-chapter" method="post" style="display: inline;">
+            <button type="submit" class="btn btn-secondary">Abandon</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 {% if resume_story %}
 <div class="resume-banner">
     <div class="resume-info">
@@ -146,6 +161,13 @@
                 <span class="option-card">
                     <span class="option-name">Long</span>
                     <span class="option-desc">~7 chapters, 20+ min</span>
+                </span>
+            </label>
+            <label class="length-option">
+                <input type="radio" name="length" value="epic">
+                <span class="option-card">
+                    <span class="option-name">Epic</span>
+                    <span class="option-desc">~5 chapters, 25 scenes</span>
                 </span>
             </label>
         </div>

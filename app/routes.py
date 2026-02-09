@@ -17,6 +17,7 @@ from app.models import (
     ImageStatus,
     StoryLength,
     StorySession,
+    SCENES_PER_CHAPTER,
 )
 from app.session import create_session, get_session, update_session, delete_session
 from app.services.story import StoryService
@@ -198,6 +199,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
     def _get_session_id(request: Request) -> str | None:
         return request.cookies.get(session_cookie)
 
+    def _progress_suffix(story_session: StorySession) -> str:
+        """Return '_chapter' for epic stories, '' otherwise."""
+        if story_session and story_session.story.length == StoryLength.EPIC:
+            return "_chapter"
+        return ""
+
     @router.get("/")
     async def tier_home(request: Request):
         """Tier home page with prompt input form."""
@@ -211,6 +218,19 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 "title": progress.story.title,
                 "prompt": progress.story.prompt,
                 "scene_count": len(progress.path_history),
+            }
+
+        # Check for in-progress chapter (epic) story
+        resume_chapter = None
+        chapter_progress = gallery_service.load_progress(tier_config.name, suffix="_chapter")
+        if chapter_progress:
+            ch_depth = len(chapter_progress.path_history) - 1
+            ch_number = (ch_depth // SCENES_PER_CHAPTER) + 1
+            resume_chapter = {
+                "title": chapter_progress.story.title,
+                "prompt": chapter_progress.story.prompt,
+                "scene_count": len(chapter_progress.path_history),
+                "chapter_number": ch_number,
             }
 
         resume_chat = None
@@ -278,6 +298,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             request, "home.html", _ctx({
                 "error": error,
                 "resume_story": resume_story,
+                "resume_chapter": resume_chapter,
                 "resume_chat": resume_chat,
                 "available_models": available_models,
                 "default_model": default_model,
@@ -556,6 +577,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             target_depth = 3
 
         try:
+            # Compute chapter info for epic stories
+            is_epic = story_length == StoryLength.EPIC
+            is_chapter_start = is_epic  # depth 0 is always chapter 1 start
+            chapter_number = 1 if is_epic else None
+            total_chapters = (target_depth // SCENES_PER_CHAPTER) if is_epic else None
+
             scene_data = await story_service.generate_scene(
                 prompt=prompt,
                 story_length=story_length,
@@ -565,6 +592,9 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 content_guidelines=content_guidelines,
                 image_style=image_style,
                 model=model,
+                is_chapter_start=is_chapter_start,
+                chapter_number=chapter_number,
+                total_chapters=total_chapters,
             )
 
             image = Image(prompt=scene_data["image_prompt"])
@@ -575,6 +605,8 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 choices=choices,
                 is_ending=scene_data.get("is_ending", False),
                 depth=0,
+                chapter_number=chapter_number if is_chapter_start else None,
+                chapter_title=scene_data.get("chapter_title") if is_chapter_start else None,
             )
 
             story = Story(
@@ -645,7 +677,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 _advance_relationships_for_story(story_session)
                 upload_service.cleanup_session(session_id)
             else:
-                gallery_service.save_progress(tier_config.name, story_session)
+                gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
 
             redirect = RedirectResponse(
                 url=f"{url_prefix}/story/scene/{scene.scene_id}", status_code=303
@@ -859,7 +891,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 _start_cover_art(story_session)
                 _advance_relationships_for_story(story_session)
             else:
-                gallery_service.save_progress(tier_config.name, story_session)
+                gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
 
             redirect = RedirectResponse(
                 url=f"{url_prefix}/story/scene/{scene.scene_id}", status_code=303
@@ -1067,7 +1099,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 # Use navigate_to to rebuild path_history correctly for the branch
                 story_session.navigate_to(existing_scene.scene_id)
                 update_session(session_id, story_session)
-                gallery_service.save_progress(tier_config.name, story_session)
+                gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
                 return RedirectResponse(
                     url=f"{url_prefix}/story/scene/{existing_scene.scene_id}",
                     status_code=303,
@@ -1155,6 +1187,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             if story_session.story.reference_photo_paths:
                 choice_photo_paths = story_session.story.reference_photo_paths
 
+            # Compute chapter info for epic stories
+            is_epic = story_session.story.length == StoryLength.EPIC
+            is_chapter_start = is_epic and (new_depth % SCENES_PER_CHAPTER == 0)
+            chapter_number = ((new_depth // SCENES_PER_CHAPTER) + 1) if is_epic else None
+            total_chapters = (story_session.story.target_depth // SCENES_PER_CHAPTER) if is_epic else None
+
             scene_data = await story_service.generate_scene(
                 prompt=story_session.story.prompt,
                 story_length=story_session.story.length,
@@ -1165,6 +1203,9 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 content_guidelines=content_guidelines,
                 image_style=image_style,
                 model=story_session.story.model,
+                is_chapter_start=is_chapter_start,
+                chapter_number=chapter_number,
+                total_chapters=total_chapters,
             )
 
             new_image = Image(prompt=scene_data["image_prompt"])
@@ -1179,6 +1220,8 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 depth=new_depth,
                 parent_scene_id=scene.scene_id,
                 choice_taken_id=choice_id,
+                chapter_number=chapter_number if is_chapter_start else None,
+                chapter_title=scene_data.get("chapter_title") if is_chapter_start else None,
             )
 
             selected_choice.next_scene_id = new_scene.scene_id
@@ -1210,11 +1253,11 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 gallery_service.save_story(story_session)
                 _start_cover_art(story_session)
                 _advance_relationships_for_story(story_session)
-                gallery_service.delete_progress(tier_config.name)
+                gallery_service.delete_progress(tier_config.name, suffix=_progress_suffix(story_session))
                 if session_id:
                     upload_service.cleanup_session(session_id)
             else:
-                gallery_service.save_progress(tier_config.name, story_session)
+                gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
 
             return RedirectResponse(
                 url=f"{url_prefix}/story/scene/{new_scene.scene_id}",
@@ -1333,6 +1376,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             if story_session.story.reference_photo_paths:
                 choice_photo_paths = story_session.story.reference_photo_paths
 
+            # Compute chapter info for epic stories
+            is_epic = story_session.story.length == StoryLength.EPIC
+            is_chapter_start = is_epic and (new_depth % SCENES_PER_CHAPTER == 0)
+            chapter_number = ((new_depth // SCENES_PER_CHAPTER) + 1) if is_epic else None
+            total_chapters = (story_session.story.target_depth // SCENES_PER_CHAPTER) if is_epic else None
+
             scene_data = await story_service.generate_scene(
                 prompt=story_session.story.prompt,
                 story_length=story_session.story.length,
@@ -1343,6 +1392,9 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 content_guidelines=content_guidelines,
                 image_style=image_style,
                 model=story_session.story.model,
+                is_chapter_start=is_chapter_start,
+                chapter_number=chapter_number,
+                total_chapters=total_chapters,
             )
 
             new_image = Image(prompt=scene_data["image_prompt"])
@@ -1360,6 +1412,8 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 depth=new_depth,
                 parent_scene_id=scene.scene_id,
                 choice_taken_id=custom_choice_obj.choice_id,
+                chapter_number=chapter_number if is_chapter_start else None,
+                chapter_title=scene_data.get("chapter_title") if is_chapter_start else None,
             )
             custom_choice_obj.next_scene_id = new_scene.scene_id
             scene.choices.append(custom_choice_obj)
@@ -1391,11 +1445,11 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 gallery_service.save_story(story_session)
                 _start_cover_art(story_session)
                 _advance_relationships_for_story(story_session)
-                gallery_service.delete_progress(tier_config.name)
+                gallery_service.delete_progress(tier_config.name, suffix=_progress_suffix(story_session))
                 if session_id:
                     upload_service.cleanup_session(session_id)
             else:
-                gallery_service.save_progress(tier_config.name, story_session)
+                gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
 
             return RedirectResponse(
                 url=f"{url_prefix}/story/scene/{new_scene.scene_id}",
@@ -1425,7 +1479,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         previous = story_session.navigate_backward()
         if previous:
             update_session(session_id, story_session)
-            gallery_service.save_progress(tier_config.name, story_session)
+            gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
             return RedirectResponse(
                 url=f"{url_prefix}/story/scene/{previous.scene_id}",
                 status_code=303,
@@ -1467,7 +1521,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             )
 
         update_session(session_id, story_session)
-        gallery_service.save_progress(tier_config.name, story_session)
+        gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
         return RedirectResponse(
             url=f"{url_prefix}/story/scene/{scene_id}",
             status_code=303,
@@ -1505,6 +1559,30 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         redirect = RedirectResponse(url=f"{url_prefix}/", status_code=303)
         redirect.delete_cookie(key=session_cookie, path=cookie_path)
         return redirect
+
+    @router.get("/story/resume-chapter")
+    async def resume_chapter_story(request: Request):
+        """Restore an in-progress chapter (epic) story from disk."""
+        progress = gallery_service.load_progress(tier_config.name, suffix="_chapter")
+        if not progress:
+            return RedirectResponse(url=f"{url_prefix}/", status_code=303)
+
+        session_id = create_session(progress)
+        redirect = RedirectResponse(
+            url=f"{url_prefix}/story/scene/{progress.story.current_scene_id}?resumed=1",
+            status_code=303,
+        )
+        redirect.set_cookie(
+            key=session_cookie, value=session_id,
+            httponly=True, path=cookie_path,
+        )
+        return redirect
+
+    @router.post("/story/abandon-chapter")
+    async def abandon_chapter_story(request: Request):
+        """Abandon the in-progress chapter (epic) story."""
+        gallery_service.delete_progress(tier_config.name, suffix="_chapter")
+        return RedirectResponse(url=f"{url_prefix}/", status_code=303)
 
     @router.post("/story/image/{scene_id}/retry")
     async def retry_image(request: Request, scene_id: str):
@@ -1554,7 +1632,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         )
 
         # Persist progress
-        gallery_service.save_progress(tier_config.name, story_session)
+        gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
 
         return JSONResponse({"status": "generating"})
 
@@ -1600,7 +1678,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         )
 
         # Persist progress
-        gallery_service.save_progress(tier_config.name, story_session)
+        gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
 
         return JSONResponse({"status": "generating"})
 
@@ -1639,7 +1717,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         # Restore the prompt (generate_image doesn't change it but be safe)
         extra_img.prompt = original_prompt
 
-        gallery_service.save_progress(tier_config.name, story_session)
+        gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
 
         return JSONResponse({"status": "generating"})
 
@@ -1715,7 +1793,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             image_service.generate_video(image, scene_id)
         )
 
-        gallery_service.save_progress(tier_config.name, story_session)
+        gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
 
         return JSONResponse({"status": "generating"})
 
@@ -2661,6 +2739,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         target_depth = story_length.target_depth
 
         try:
+            # Compute chapter info for epic sequels
+            is_epic = story_length == StoryLength.EPIC
+            is_chapter_start = is_epic
+            chapter_number = 1 if is_epic else None
+            total_chapters = (target_depth // SCENES_PER_CHAPTER) if is_epic else None
+
             scene_data = await story_service.generate_scene(
                 prompt=saved.prompt,
                 story_length=story_length,
@@ -2670,6 +2754,9 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 content_guidelines=content_guidelines,
                 image_style=image_style,
                 model=effective_model,
+                is_chapter_start=is_chapter_start,
+                chapter_number=chapter_number,
+                total_chapters=total_chapters,
             )
 
             image = Image(prompt=scene_data["image_prompt"])
@@ -2680,6 +2767,8 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 choices=choices,
                 is_ending=scene_data.get("is_ending", False),
                 depth=0,
+                chapter_number=chapter_number if is_chapter_start else None,
+                chapter_title=scene_data.get("chapter_title") if is_chapter_start else None,
             )
 
             story = Story(
@@ -2724,7 +2813,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 _start_cover_art(story_session)
                 _advance_relationships_for_story(story_session)
             else:
-                gallery_service.save_progress(tier_config.name, story_session)
+                gallery_service.save_progress(tier_config.name, story_session, suffix=_progress_suffix(story_session))
 
             redirect = RedirectResponse(
                 url=f"{url_prefix}/story/scene/{scene.scene_id}", status_code=303

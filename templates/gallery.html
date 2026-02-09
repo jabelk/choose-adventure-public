@@ -37,6 +37,11 @@
                     &middot;
                     <span class="story-card-model">{{ get_image_model_display_name(story.image_model) }}</span>
                     {% if story.video_mode %}&middot; <span class="video-badge">Video</span>{% endif %}
+                    {% if story.length == 'epic' %}
+                    {% set ns_ch = namespace(count=0) %}
+                    {% for sid, sc in story.scenes.items() %}{% if sc.chapter_number %}{% set ns_ch.count = ns_ch.count + 1 %}{% endif %}{% endfor %}
+                    {% if ns_ch.count > 0 %}&middot; <span class="chapter-badge">{{ ns_ch.count }} Chapters</span>{% endif %}
+                    {% endif %}
                     &middot;
                     <span class="story-card-date">{{ story.completed_at.strftime('%b %d, %Y') }}</span>
                 </span>

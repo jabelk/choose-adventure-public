@@ -9,9 +9,16 @@
 <div class="scene-header">
     <a href="{{ url_prefix }}/" class="home-link" title="Back to home">&larr; Home</a>
     <span class="story-title">{{ story.title }}</span>
-    <span class="chapter">Chapter {{ scene.depth + 1 }} of ~{{ story.target_depth }} · {{ model_display_name }} · {{ get_image_model_display_name(story.image_model) }}</span>
+    <span class="chapter">{% if story.length.value == 'epic' %}Ch. {{ ((scene.depth // 5) + 1) }} · Scene {{ scene.depth + 1 }}{% else %}Chapter {{ scene.depth + 1 }}{% endif %} of ~{{ story.target_depth }} · {{ model_display_name }} · {{ get_image_model_display_name(story.image_model) }}</span>
     {% if bedtime_mode %}<span class="bedtime-timer" id="bedtime-timer">00:00</span>{% endif %}
 </div>
+
+{% if scene.chapter_number and scene.chapter_title %}
+<div class="chapter-title-card">
+    <span class="chapter-number">Chapter {{ scene.chapter_number }}</span>
+    <span class="chapter-title-text">{{ scene.chapter_title }}</span>
+</div>
+{% endif %}
 
 {% if show_recap %}
 <details class="recap-section" id="recap-section" data-recap-url="{{ recap_url }}"{% if recap_expanded %} open{% endif %}>

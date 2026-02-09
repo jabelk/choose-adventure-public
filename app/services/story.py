@@ -37,13 +37,14 @@ STORY PACING:
 - Story length: {story_length} ({target_depth} chapters total)
 - Current chapter: {current_depth} of {target_depth}
 - {pacing_instruction}
+{chapter_instruction}
 
 OUTPUT FORMAT (strict JSON, no markdown):
 {{
   "title": "Scene title (short, evocative)",
   "content": "The narrative text for this scene. Multiple paragraphs separated by newlines.",
   "image_prompt": "Detailed visual description for AI image generation.",
-  "is_ending": false,
+  "is_ending": false,{chapter_title_field}
   "choices": [
     {{"text": "Choice 1 description"}},
     {{"text": "Choice 2 description"}},
@@ -80,6 +81,9 @@ class StoryService:
         content_guidelines: str = "",
         image_style: str = "",
         model: str = "claude",
+        is_chapter_start: bool = False,
+        chapter_number: int | None = None,
+        total_chapters: int | None = None,
     ) -> dict:
         """Generate a single scene using the specified AI provider."""
         # Determine pacing
@@ -94,12 +98,35 @@ class StoryService:
             pacing = "The story is still developing. Build tension and expand the narrative."
             choice_count = 3
 
+        # Build chapter-specific instructions for epic stories
+        chapter_instruction = ""
+        chapter_title_field = ""
+        if chapter_number and total_chapters:
+            chapter_instruction = (
+                f"\nCHAPTER STRUCTURE:\n"
+                f"- You are writing Chapter {chapter_number} of {total_chapters}.\n"
+                f"- Each chapter spans ~5 scenes with its own mini narrative arc.\n"
+                f"- Maintain an overarching story thread across all chapters."
+            )
+            if chapter_number == 1:
+                chapter_instruction += "\n- This is the opening chapter. Establish the world, characters, and central conflict."
+            elif chapter_number == total_chapters:
+                chapter_instruction += "\n- This is the final chapter. Build toward the story's climax and resolution."
+            else:
+                chapter_instruction += f"\n- This is a middle chapter. Develop subplots and raise the stakes."
+
+            if is_chapter_start:
+                chapter_instruction += "\n- This scene is the FIRST scene of a new chapter. Set a new tone or location shift to mark the chapter transition."
+                chapter_title_field = '\n  "chapter_title": "A short, evocative chapter title (3-6 words)",'
+
         system = SYSTEM_PROMPT.format(
             choice_count=choice_count,
             story_length=story_length.value,
             target_depth=target_depth,
             current_depth=current_depth + 1,
             pacing_instruction=pacing,
+            chapter_instruction=chapter_instruction,
+            chapter_title_field=chapter_title_field,
         )
 
         # Prepend tier-specific content guidelines
