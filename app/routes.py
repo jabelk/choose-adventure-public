@@ -1447,6 +1447,22 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         if image.status == ImageStatus.GENERATING:
             return JSONResponse({"status": "generating"})
 
+        # If the image was already complete, add a variation hint so the
+        # model produces a different composition instead of the same image
+        was_complete = image.status == ImageStatus.COMPLETE
+        if was_complete:
+            import random as _rng
+            _variations = [
+                "Use a different camera angle and composition.",
+                "Try a different lighting setup and color palette.",
+                "Change the character's pose and expression.",
+                "Use a different artistic framing and perspective.",
+                "Vary the background details and atmosphere.",
+                "Shift the mood with different lighting and shadows.",
+            ]
+            variation_hint = _rng.choice(_variations)
+            image.prompt = f"{image.prompt} [{variation_hint}]"
+
         # Reset image state
         image.status = ImageStatus.PENDING
         image.url = None
