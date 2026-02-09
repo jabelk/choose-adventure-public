@@ -104,6 +104,21 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             )
         )
 
+    def _start_cover_art(story_session):
+        """Kick off async cover art generation for a completed story."""
+        story = story_session.story
+        asyncio.create_task(
+            gallery_service.generate_cover_art(
+                image_service=image_service,
+                story_id=story.story_id,
+                title=story.title,
+                prompt=story.prompt,
+                image_model=story.image_model,
+                tier=tier_config.name,
+                art_style=story.art_style,
+            )
+        )
+
     async def _chain_video_after_image(image, scene_id):
         """Wait for image generation to complete, then generate video."""
         max_wait = 120  # 2 minutes
@@ -626,6 +641,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             # Auto-save if the first scene is already an ending
             if scene.is_ending:
                 gallery_service.save_story(story_session)
+                _start_cover_art(story_session)
                 _advance_relationships_for_story(story_session)
                 upload_service.cleanup_session(session_id)
             else:
@@ -840,6 +856,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
 
             if scene.is_ending:
                 gallery_service.save_story(story_session)
+                _start_cover_art(story_session)
                 _advance_relationships_for_story(story_session)
             else:
                 gallery_service.save_progress(tier_config.name, story_session)
@@ -1191,6 +1208,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             # Auto-save completed stories to gallery, or save progress
             if new_scene.is_ending:
                 gallery_service.save_story(story_session)
+                _start_cover_art(story_session)
                 _advance_relationships_for_story(story_session)
                 gallery_service.delete_progress(tier_config.name)
                 if session_id:
@@ -1371,6 +1389,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
 
             if new_scene.is_ending:
                 gallery_service.save_story(story_session)
+                _start_cover_art(story_session)
                 _advance_relationships_for_story(story_session)
                 gallery_service.delete_progress(tier_config.name)
                 if session_id:
@@ -2362,6 +2381,44 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
+    @router.post("/gallery/{story_id}/regenerate-cover")
+    async def regenerate_cover(request: Request, story_id: str):
+        """Regenerate cover art for a saved story."""
+        saved = gallery_service.get_story(story_id)
+        if not saved or saved.tier != tier_config.name:
+            return RedirectResponse(
+                url=f"{url_prefix}/gallery", status_code=303
+            )
+        saved.cover_art_status = "generating"
+        gallery_service.update_story(saved)
+        asyncio.create_task(
+            gallery_service.generate_cover_art(
+                image_service=image_service,
+                story_id=saved.story_id,
+                title=saved.title,
+                prompt=saved.prompt,
+                image_model=saved.image_model,
+                tier=tier_config.name,
+                art_style=saved.art_style,
+            )
+        )
+        # Find root scene to redirect to reader
+        root_scene_id = None
+        for sid, scene in saved.scenes.items():
+            if scene.parent_scene_id is None:
+                root_scene_id = sid
+                break
+        if not root_scene_id:
+            root_scene_id = saved.path_history[0] if saved.path_history else None
+        if root_scene_id:
+            return RedirectResponse(
+                url=f"{url_prefix}/gallery/{story_id}/{root_scene_id}",
+                status_code=303,
+            )
+        return RedirectResponse(
+            url=f"{url_prefix}/gallery", status_code=303
+        )
+
     # --- Family Mode Routes ---
 
     @router.get("/family")
@@ -2664,6 +2721,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
 
             if scene.is_ending:
                 gallery_service.save_story(story_session)
+                _start_cover_art(story_session)
                 _advance_relationships_for_story(story_session)
             else:
                 gallery_service.save_progress(tier_config.name, story_session)

@@ -1156,6 +1156,7 @@ p {
     aspect-ratio: 16 / 10;
     overflow: hidden;
     background: var(--bg-input);
+    position: relative;
 }
 
 .story-card-image img {
@@ -1163,6 +1164,36 @@ p {
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+.cover-art-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.5rem 0.75rem;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    color: #fff;
+    pointer-events: none;
+}
+
+.cover-art-overlay .cover-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    line-height: 1.2;
+}
+
+.theme-kids .cover-art-overlay {
+    background: linear-gradient(transparent, rgba(50,20,80,0.75));
+}
+
+.theme-adult .cover-art-overlay {
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+}
+
+.theme-bible .cover-art-overlay {
+    background: linear-gradient(transparent, rgba(60,40,10,0.75));
 }
 
 .story-card-placeholder {

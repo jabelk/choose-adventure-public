@@ -14,12 +14,19 @@
     <div class="story-card-wrapper">
         <a href="{{ url_prefix }}/gallery/{{ story.story_id }}" class="story-card">
             <div class="story-card-image">
+                {% if story.cover_art_url and story.cover_art_status == "complete" %}
+                <img src="{{ story.cover_art_url }}" alt="{{ story.title }}" class="cover-art-img">
+                <div class="cover-art-overlay">
+                    <div class="cover-title">{{ story.title }}</div>
+                </div>
+                {% else %}
                 {% set first_scene_id = story.path_history[0] if story.path_history else None %}
                 {% set first_scene = story.scenes.get(first_scene_id) if first_scene_id else None %}
                 {% if first_scene and first_scene.image_url %}
                 <img src="{{ first_scene.image_url }}" alt="{{ story.title }}">
                 {% else %}
                 <div class="story-card-placeholder">No image</div>
+                {% endif %}
                 {% endif %}
             </div>
             <div class="story-card-info">

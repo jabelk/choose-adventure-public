@@ -85,6 +85,11 @@
     <div class="export-buttons">
         <a href="{{ url_prefix }}/gallery/{{ story.story_id }}/export/html" class="btn-export">Export HTML</a>
         <a href="{{ url_prefix }}/gallery/{{ story.story_id }}/export/pdf" class="btn-export">Export PDF</a>
+        {% if scene.depth == 0 %}
+        <form action="{{ url_prefix }}/gallery/{{ story.story_id }}/regenerate-cover" method="post" style="display:inline">
+            <button type="submit" class="btn-export">Regenerate Cover</button>
+        </form>
+        {% endif %}
     </div>
     {% set ns = namespace(gallery_images=[]) %}
     {% for sid in story.path_history %}

@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.models import (
+    Image,
     SavedChoice,
     SavedScene,
     SavedStory,
@@ -14,6 +15,12 @@ logger = logging.getLogger(__name__)
 
 STORIES_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "stories"
 PROGRESS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "progress"
+
+COVER_STYLES = {
+    "kids": "Bright, colorful children's book cover illustration, whimsical, friendly, cheerful atmosphere, picture book aesthetic",
+    "bible": "Warm, reverent Bible storybook cover illustration, golden light, classical painting style, inspirational",
+    "nsfw": "Stylized, atmospheric book cover art, bold composition, cinematic lighting, mature aesthetic",
+}
 
 
 class GalleryService:
@@ -85,6 +92,7 @@ class GalleryService:
             parent_story_id=story.parent_story_id,
             roster_character_ids=list(story.roster_character_ids),
             created_at=story.created_at,
+            cover_art_status="generating",
             completed_at=datetime.now(),
             scenes=saved_scenes,
             path_history=list(story_session.path_history),
@@ -103,6 +111,66 @@ class GalleryService:
                 self.update_sequel_link(story.parent_story_id, story.story_id)
         except Exception as e:
             logger.error(f"Failed to save story {story.story_id}: {e}")
+
+    async def generate_cover_art(
+        self,
+        image_service,
+        story_id: str,
+        title: str,
+        prompt: str,
+        image_model: str,
+        tier: str,
+        art_style: str = "",
+    ) -> None:
+        """Generate a book-cover-style image for a completed story.
+
+        Runs as a background task after save_story(). Updates the story JSON
+        on disk with the cover art URL and status when complete.
+        """
+        from app.models_registry import get_art_style_prompt
+
+        # Build cover prompt
+        tier_style = COVER_STYLES.get(tier, "")
+        art_style_text = get_art_style_prompt(art_style) if art_style else ""
+
+        cover_prompt = (
+            f"A book cover illustration for a story titled \"{title}\". "
+            f"Theme: {prompt}. "
+        )
+        if tier_style:
+            cover_prompt += f"Style: {tier_style}. "
+        if art_style_text:
+            cover_prompt += f"{art_style_text}. "
+        cover_prompt += (
+            "Compose as a single dramatic illustration suitable for a book cover. "
+            "No text, no words, no lettering."
+        )
+
+        file_id = f"{story_id}_cover"
+        img = Image(prompt=cover_prompt)
+
+        try:
+            await image_service.generate_image(
+                img, file_id, image_model=image_model,
+            )
+            # Update story JSON on disk
+            saved = self.get_story(story_id)
+            if saved:
+                if img.status.value == "complete" and img.url:
+                    saved.cover_art_url = img.url
+                    saved.cover_art_status = "complete"
+                else:
+                    saved.cover_art_status = "failed"
+                self.update_story(saved)
+        except Exception as e:
+            logger.warning(f"Cover art generation failed for story {story_id}: {e}")
+            try:
+                saved = self.get_story(story_id)
+                if saved:
+                    saved.cover_art_status = "failed"
+                    self.update_story(saved)
+            except Exception:
+                pass
 
     def list_stories(self, tier: str) -> list[SavedStory]:
         """Load all saved stories for a tier, sorted newest first."""

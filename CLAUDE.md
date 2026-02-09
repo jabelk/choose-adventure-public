@@ -139,6 +139,7 @@ This project uses [GitHub Spec Kit](https://github.com/github/spec-kit). The wor
 - In-memory session (Story model field) — no new disk storage (043-visual-consistency)
 - Python 3.11+ (same as existing project) + FastAPI, Jinja2, Pydantic, anthropic SDK, openai SDK, google-genai SDK (all existing — no new pip dependencies) (044-story-recap)
 - In-memory session cache (`StorySession.recap_cache` dict) — no disk persistence needed (044-story-recap)
+- Python 3.11+ (matches existing project) + FastAPI, Jinja2, Pydantic, anthropic SDK, openai SDK, google-genai SDK (all existing — no new dependencies) (045-cover-art-generator)
 
 ## Recent Changes
 <!-- Updated automatically by spec-kit during /speckit.plan -->

@@ -290,6 +290,8 @@ class SavedStory(BaseModel):
     sequel_story_ids: list[str] = Field(default_factory=list)
     created_at: datetime
     completed_at: datetime = Field(default_factory=datetime.now)
+    cover_art_url: Optional[str] = None
+    cover_art_status: str = "none"
     scenes: dict[str, SavedScene] = Field(default_factory=dict)
     path_history: list[str] = Field(default_factory=list)
 
