@@ -13,6 +13,15 @@
     {% if bedtime_mode %}<span class="bedtime-timer" id="bedtime-timer">00:00</span>{% endif %}
 </div>
 
+{% if show_recap %}
+<details class="recap-section" id="recap-section" data-recap-url="{{ recap_url }}"{% if recap_expanded %} open{% endif %}>
+    <summary class="recap-summary">Story so far</summary>
+    <div class="recap-text" id="recap-content">
+        <span class="recap-loading">Loading recap...</span>
+    </div>
+</details>
+{% endif %}
+
 {% if has_branches %}
 <div class="tree-map-bar">
     <button class="tree-map-toggle" id="tree-map-toggle" onclick="toggleTreeMap()">Story Map</button>

@@ -189,6 +189,7 @@ class StorySession(BaseModel):
     scenes: dict[str, Scene] = Field(default_factory=dict)
     path_history: list[str] = Field(default_factory=list)
     error_message: Optional[str] = None
+    recap_cache: dict[str, str] = Field(default_factory=dict)
 
     @property
     def current_scene(self) -> Optional[Scene]:

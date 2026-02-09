@@ -913,8 +913,65 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 "bedtime_mode": story_session.story.bedtime_mode,
                 "has_reference_images": bool(_build_reference_images(story_session)),
                 "has_generated_reference": bool(story_session.story.generated_reference_path),
+                "show_recap": scene.depth >= 1,
+                "recap_expanded": request.query_params.get("resumed") == "1",
+                "recap_url": f"{url_prefix}/story/recap/{scene.scene_id}",
             }),
         )
+
+    @router.get("/story/recap/{scene_id}")
+    async def get_recap(request: Request, scene_id: str):
+        """Generate or return cached recap for the story so far."""
+        story_session = _get_story_session(request)
+        if not story_session:
+            return JSONResponse({"status": "error"})
+
+        scene = story_session.scenes.get(scene_id)
+        if not scene or scene.depth < 1:
+            return JSONResponse({"status": "error"})
+
+        # Build cache key from path history up to this scene
+        depth = scene.depth
+        path_slice = story_session.path_history[:depth + 1]
+        cache_key = "|".join(path_slice[:depth])  # scenes before current
+
+        # Check cache
+        if cache_key in story_session.recap_cache:
+            return JSONResponse({
+                "status": "ok",
+                "text": story_session.recap_cache[cache_key],
+            })
+
+        # Generate recap from scenes along the path before the current one
+        context_scenes = [
+            story_session.scenes[sid]
+            for sid in path_slice[:depth]
+            if sid in story_session.scenes
+        ]
+        if not context_scenes:
+            return JSONResponse({"status": "error"})
+
+        # Tier-specific recap style guidance
+        recap_styles = {
+            "kids": "Use very simple words and short sentences a 3-year-old can understand.",
+            "bible": "Use warm, reverent language befitting a Bible story.",
+            "nsfw": "Preserve the story's mature tone and atmosphere.",
+        }
+        recap_style = recap_styles.get(tier_config.name, "")
+
+        recap_text = await story_service.generate_recap(
+            scenes=context_scenes,
+            model=story_session.story.model,
+            content_guidelines=tier_config.content_guidelines,
+            recap_style=recap_style,
+        )
+
+        if not recap_text:
+            return JSONResponse({"status": "error"})
+
+        # Cache and return
+        story_session.recap_cache[cache_key] = recap_text
+        return JSONResponse({"status": "ok", "text": recap_text})
 
     @router.post("/story/keep-going/{scene_id}")
     async def keep_going(request: Request, scene_id: str):
@@ -1406,7 +1463,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
 
         session_id = create_session(progress)
         redirect = RedirectResponse(
-            url=f"{url_prefix}/story/scene/{progress.story.current_scene_id}",
+            url=f"{url_prefix}/story/scene/{progress.story.current_scene_id}?resumed=1",
             status_code=303,
         )
         redirect.set_cookie(

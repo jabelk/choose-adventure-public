@@ -369,3 +369,46 @@ class StoryService:
                 data["choices"] = data["choices"][:4]
 
         return data
+
+    async def generate_recap(
+        self,
+        scenes: list[Scene],
+        model: str = "claude",
+        content_guidelines: str = "",
+        recap_style: str = "",
+    ) -> str:
+        """Generate a 2-3 sentence recap of the story so far.
+
+        Uses the same AI provider as the story for consistent voice.
+        Returns plain text summary, or empty string on failure.
+        """
+        if not scenes:
+            return ""
+
+        scene_count = len(scenes)
+        sentence_count = "2-3" if scene_count < 10 else "3-4"
+
+        system = (
+            f"You are a story recap writer. Summarize the story events so far "
+            f"in {sentence_count} short sentences. Write in the same tone and "
+            f"voice as the story. Do not mention choices, options, or what might "
+            f"happen next. Just summarize what has happened."
+        )
+        if recap_style:
+            system += " " + recap_style
+        if content_guidelines:
+            system = content_guidelines + "\n\n" + system
+
+        # Build a compact summary of each scene
+        story_text = "\n\n".join(
+            f"Scene {i + 1}: {s.content}" for i, s in enumerate(scenes)
+        )
+        messages = [
+            {"role": "user", "content": f"Summarize this story so far:\n\n{story_text}"},
+        ]
+
+        try:
+            return await self._call_provider(model, system, messages)
+        except Exception as e:
+            logger.warning(f"Recap generation failed: {e}")
+            return ""

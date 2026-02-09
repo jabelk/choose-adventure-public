@@ -560,4 +560,49 @@ document.addEventListener('DOMContentLoaded', () => {
             showLoading('Continuing the story...');
         });
     });
+
+    // Story recap fetch
+    initRecap();
 });
+
+/**
+ * Story Recap — async fetch and display for "Story so far" section.
+ */
+function initRecap() {
+    var section = document.getElementById('recap-section');
+    if (!section) return;
+
+    var url = section.getAttribute('data-recap-url');
+    var content = document.getElementById('recap-content');
+    if (!url || !content) return;
+
+    var fetched = false;
+
+    function fetchRecap() {
+        if (fetched) return;
+        fetched = true;
+        fetch(url)
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                if (data.status === 'ok' && data.text) {
+                    content.textContent = data.text;
+                    content.classList.add('recap-loaded');
+                } else {
+                    section.style.display = 'none';
+                }
+            })
+            .catch(function() {
+                section.style.display = 'none';
+            });
+    }
+
+    // If already open (resumed), fetch immediately
+    if (section.open) {
+        fetchRecap();
+    } else {
+        // Fetch on first toggle open
+        section.addEventListener('toggle', function() {
+            if (section.open) fetchRecap();
+        });
+    }
+}
