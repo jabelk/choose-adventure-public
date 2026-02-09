@@ -30,11 +30,17 @@
                    placeholder="{% if tier.name == 'kids' %}e.g. Mr. Snuggles{% elif tier.name == 'bible' %}e.g. David{% endif %}" class="text-input"
                    value="{{ edit_character.name if edit_character else '' }}">
         </div>
+        <!-- Structured Attribute Selectors -->
+        <div class="attr-section">
+            <label class="flavor-label">Character Attributes</label>
+            <div id="char-attr-selectors"></div>
+        </div>
+
         <div class="character-field">
-            <label for="char-desc" class="flavor-label">Physical Description</label>
-            <textarea id="char-desc" name="description" maxlength="500" required
-                      placeholder="{% if tier.name == 'kids' %}A fluffy purple bear who loves cuddles and wears a tiny crown{% else %}Hair, eyes, build, distinguishing features...{% endif %}"
-                      class="text-input" rows="3">{{ edit_character.description if edit_character else '' }}</textarea>
+            <label for="char-desc" class="flavor-label">Additional Details (optional)</label>
+            <textarea id="char-desc" name="description" maxlength="500"
+                      placeholder="{% if tier.name == 'kids' %}A fluffy purple bear who loves cuddles and wears a tiny crown{% else %}Add any extra details not covered by the attributes above...{% endif %}"
+                      class="text-input" rows="2">{{ edit_character.description if edit_character else '' }}</textarea>
         </div>
 
         {% if edit_character and edit_character.photo_paths %}
@@ -72,6 +78,7 @@
             {% endif %}
         </div>
     </form>
+
 
     {% if edit_character %}
     <!-- Outfits Section -->
@@ -207,4 +214,12 @@
 </div>
 {% endif %}
 
+<script src="/static/js/character-attributes.js"></script>
+<script>
+    (function() {
+        var config = {{ attributes_config_json | safe }};
+        var preselected = {{ preselected_attrs_json | safe }};
+        initAttributeSelectors('char-attr-selectors', config, preselected, 'attr_');
+    })();
+</script>
 {% endblock %}

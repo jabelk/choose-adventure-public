@@ -235,11 +235,16 @@
                 <input type="text" id="character_name" name="character_name" maxlength="100"
                        placeholder="{% if tier.name == 'kids' %}e.g. Mr. Snuggles{% elif tier.name == 'bible' %}e.g. David{% endif %}" class="text-input">
             </div>
+            <!-- Inline Attribute Selectors -->
+            <div class="attr-section">
+                <label class="flavor-label">Quick Attributes</label>
+                <div id="inline-attr-selectors"></div>
+            </div>
             <div class="character-field">
-                <label for="character_description" class="flavor-label">{% if tier.name == 'kids' %}Description{% else %}Physical Description{% endif %}</label>
+                <label for="character_description" class="flavor-label">{% if tier.name == 'kids' %}Description{% else %}Additional Details (optional){% endif %}</label>
                 <textarea id="character_description" name="character_description" maxlength="500"
-                          placeholder="{% if tier.name == 'kids' %}A fluffy purple bear who loves cuddles...{% else %}Hair, eyes, build, distinguishing features...{% endif %}"
-                          class="text-input" rows="3"></textarea>
+                          placeholder="{% if tier.name == 'kids' %}A fluffy purple bear who loves cuddles...{% else %}Extra details not covered by attributes above...{% endif %}"
+                          class="text-input" rows="2"></textarea>
             </div>
         </div>
         <input type="hidden" id="template_fallback_characters" name="template_fallback_characters" value="">
@@ -390,6 +395,28 @@
     initCharacterPicker({{ roster_characters_json | safe }}, []);
 </script>
 {% endif %}
+<script src="/static/js/character-attributes.js"></script>
+<script>
+    (function() {
+        var config = {{ inline_attrs_json | safe }};
+        initAttributeSelectors('inline-attr-selectors', config, {}, 'inline_attr_');
+
+        // Disable inline attrs when a roster character is selected
+        var picker = document.getElementById('character-picker');
+        if (picker) {
+            var observer = new MutationObserver(function() {
+                var checked = picker.querySelectorAll('input[type="checkbox"]:checked');
+                setAttributeSelectorsDisabled('inline-attr-selectors', checked.length > 0);
+            });
+            observer.observe(picker, { subtree: true, attributes: true });
+            // Also listen for change events on checkboxes
+            picker.addEventListener('change', function() {
+                var checked = picker.querySelectorAll('input[type="checkbox"]:checked');
+                setAttributeSelectorsDisabled('inline-attr-selectors', checked.length > 0);
+            });
+        }
+    })();
+</script>
 {% if tier.templates | length > 6 %}
 <script src="/static/js/template-shuffle.js"></script>
 <script>

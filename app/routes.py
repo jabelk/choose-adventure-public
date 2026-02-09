@@ -121,6 +121,14 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             ctx.update(extra)
         return ctx
 
+    def _advance_relationships_for_story(story_session):
+        """Advance relationship stage for all roster characters in a completed story (NSFW only)."""
+        if tier_config.name != "nsfw":
+            return
+        roster_ids = getattr(story_session.story, "roster_character_ids", [])
+        for rc_id in roster_ids:
+            character_service.advance_relationship(tier_config.name, rc_id)
+
     def _get_story_session(request: Request) -> StorySession | None:
         session_id = request.cookies.get(session_cookie)
         if not session_id:
@@ -165,12 +173,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         profiles = profile_service.list_profiles(tier_config.name)
 
         # Get roster characters for character picker
+        import json
         roster_characters = []
         roster_characters_json = "[]"
         roster_characters = character_service.list_characters(tier_config.name)
         if roster_characters:
             # Build JSON for picker initialization
-            import json
             roster_json_data = []
             for char in roster_characters:
                 photo_urls = []
@@ -183,11 +191,28 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                     "description": char.description,
                     "photo_urls": photo_urls,
                     "photo_count": len(char.photo_paths),
+                    "relationship_stage": char.relationship_stage,
+                    "story_count": char.story_count,
                 })
             roster_characters_json = json.dumps(roster_json_data)
 
         # Get family for Family Mode toggle
         family = family_service.get_family(tier_config.name)
+
+        # Build inline attribute config for character section
+        from app.story_options import get_attributes_for_tier
+        tier_attrs = get_attributes_for_tier(tier_config.name)
+        inline_attrs_grouped: dict[str, list] = {}
+        for key, attr in tier_attrs.items():
+            group = attr["group"]
+            if group not in inline_attrs_grouped:
+                inline_attrs_grouped[group] = []
+            inline_attrs_grouped[group].append({
+                "key": key,
+                "label": attr["label"],
+                "options": attr["options"],
+            })
+        inline_attrs_json = json.dumps(inline_attrs_grouped)
 
         return templates.TemplateResponse(
             request, "home.html", _ctx({
@@ -206,6 +231,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 "roster_characters": roster_characters,
                 "roster_characters_json": roster_characters_json,
                 "family": family,
+                "inline_attrs_json": inline_attrs_json,
             })
         )
 
@@ -357,6 +383,25 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             content_guidelines = content_guidelines + "\n\n" + story_flavor
 
 
+        # Build inline character attributes (ignored if roster characters are selected)
+        form_data = await request.form()
+        inline_attrs: dict[str, str] = {}
+        if not roster_character_ids or not any(rid.strip() for rid in roster_character_ids):
+            from app.story_options import get_attributes_for_tier as _get_attrs
+            from app.services.character import compose_description as _compose
+            tier_attrs = _get_attrs(tier_config.name)
+            for attr_key in tier_attrs:
+                val = form_data.get(f"inline_attr_{attr_key}", "")
+                if val and isinstance(val, str) and val.strip():
+                    inline_attrs[attr_key] = val.strip()
+            if inline_attrs:
+                composed = _compose(inline_attrs)
+                if composed:
+                    if character_description.strip():
+                        character_description = composed + " " + character_description.strip()
+                    else:
+                        character_description = composed
+
         # Build character prompt from name/description
         character_name = character_name.strip()
         character_description = character_description.strip()
@@ -390,6 +435,12 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 char_block = f"CHARACTER:\nName: {rc.name}"
                 if rc.description:
                     char_block += f"\nAppearance: {rc.description}"
+                # Inject relationship context (NSFW only)
+                if tier_config.name == "nsfw" and rc.relationship_stage != "strangers":
+                    from app.story_options import RELATIONSHIP_PROMPTS
+                    rel_prompt = RELATIONSHIP_PROMPTS.get(rc.relationship_stage, "")
+                    if rel_prompt:
+                        char_block += f"\nRelationship: {rel_prompt.format(name=rc.name)}"
                 char_block += "\nThis character MUST appear in every scene. Use their name consistently. Maintain their physical description across all scenes."
                 content_guidelines = content_guidelines + "\n\n" + char_block
                 if rc.description:
@@ -523,6 +574,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             # Auto-save if the first scene is already an ending
             if scene.is_ending:
                 gallery_service.save_story(story_session)
+                _advance_relationships_for_story(story_session)
                 upload_service.cleanup_session(session_id)
             else:
                 gallery_service.save_progress(tier_config.name, story_session)
@@ -734,6 +786,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
 
             if scene.is_ending:
                 gallery_service.save_story(story_session)
+                _advance_relationships_for_story(story_session)
             else:
                 gallery_service.save_progress(tier_config.name, story_session)
 
@@ -934,6 +987,11 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                     char_block = f"CHARACTER:\nName: {rc.name}"
                     if rc.description:
                         char_block += f"\nAppearance: {rc.description}"
+                    if tier_config.name == "nsfw" and rc.relationship_stage != "strangers":
+                        from app.story_options import RELATIONSHIP_PROMPTS
+                        rel_prompt = RELATIONSHIP_PROMPTS.get(rc.relationship_stage, "")
+                        if rel_prompt:
+                            char_block += f"\nRelationship: {rel_prompt.format(name=rc.name)}"
                     char_block += "\nThis character MUST appear in every scene. Use their name consistently. Maintain their physical description across all scenes."
                     content_guidelines = content_guidelines + "\n\n" + char_block
                     if rc.description:
@@ -1005,6 +1063,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             # Auto-save completed stories to gallery, or save progress
             if new_scene.is_ending:
                 gallery_service.save_story(story_session)
+                _advance_relationships_for_story(story_session)
                 gallery_service.delete_progress(tier_config.name)
                 if session_id:
                     upload_service.cleanup_session(session_id)
@@ -1104,6 +1163,11 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                     char_block = f"CHARACTER:\nName: {rc.name}"
                     if rc.description:
                         char_block += f"\nAppearance: {rc.description}"
+                    if tier_config.name == "nsfw" and rc.relationship_stage != "strangers":
+                        from app.story_options import RELATIONSHIP_PROMPTS
+                        rel_prompt = RELATIONSHIP_PROMPTS.get(rc.relationship_stage, "")
+                        if rel_prompt:
+                            char_block += f"\nRelationship: {rel_prompt.format(name=rc.name)}"
                     char_block += "\nThis character MUST appear in every scene. Use their name consistently. Maintain their physical description across all scenes."
                     content_guidelines = content_guidelines + "\n\n" + char_block
                     if rc.description:
@@ -1178,6 +1242,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
 
             if new_scene.is_ending:
                 gallery_service.save_story(story_session)
+                _advance_relationships_for_story(story_session)
                 gallery_service.delete_progress(tier_config.name)
                 if session_id:
                     upload_service.cleanup_session(session_id)
@@ -1785,6 +1850,8 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
     @router.get("/characters")
     async def characters_page(request: Request):
         """Display character management page."""
+        import json as _json
+        from app.story_options import get_attributes_for_tier
         error = request.query_params.get("error")
         success = request.query_params.get("success")
         edit_id = request.query_params.get("edit")
@@ -1799,6 +1866,19 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                     if o.outfit_id == edit_outfit_id:
                         editing_outfit = o
                         break
+        # Build grouped attributes config for JS
+        tier_attrs = get_attributes_for_tier(tier_config.name)
+        grouped_attrs: dict[str, list] = {}
+        for key, attr in tier_attrs.items():
+            group = attr["group"]
+            if group not in grouped_attrs:
+                grouped_attrs[group] = []
+            grouped_attrs[group].append({
+                "key": key,
+                "label": attr["label"],
+                "options": attr["options"],
+            })
+        preselected = edit_character.attributes if edit_character else {}
         return templates.TemplateResponse(
             request, "characters.html", _ctx({
                 "characters": characters,
@@ -1807,6 +1887,8 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 "editing_outfit": editing_outfit,
                 "error": error,
                 "success": success,
+                "attributes_config_json": _json.dumps(grouped_attrs),
+                "preselected_attrs_json": _json.dumps(preselected),
             })
         )
 
@@ -1814,7 +1896,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
     async def create_character_route(
         request: Request,
         name: str = Form(...),
-        description: str = Form(...),
+        description: str = Form(default=""),
         reference_photos: list[UploadFile] = File(default=[]),
     ):
         """Create a new roster character."""
@@ -1823,8 +1905,18 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 url=f"{url_prefix}/characters?error=Character+name+is+required",
                 status_code=303,
             )
+        # Collect structured attributes from attr_* form fields
+        from app.story_options import get_attributes_for_tier
+        form_data = await request.form()
+        tier_attrs = get_attributes_for_tier(tier_config.name)
+        attributes: dict[str, str] = {}
+        for attr_key in tier_attrs:
+            val = form_data.get(f"attr_{attr_key}", "")
+            if val and isinstance(val, str) and val.strip():
+                attributes[attr_key] = val.strip()
+
         character = character_service.create_character(
-            tier_config.name, name, description
+            tier_config.name, name, description, attributes=attributes
         )
         if not character:
             if character_service.name_exists(tier_config.name, name):
@@ -1852,7 +1944,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         request: Request,
         character_id: str,
         name: str = Form(...),
-        description: str = Form(...),
+        description: str = Form(default=""),
         reference_photos: list[UploadFile] = File(default=[]),
         remove_photos: list[str] = Form(default=[]),
     ):
@@ -1862,9 +1954,19 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
             character_service.remove_character_photo(
                 tier_config.name, character_id, filename
             )
-        # Update name/description
+        # Collect structured attributes from attr_* form fields
+        from app.story_options import get_attributes_for_tier
+        form_data = await request.form()
+        tier_attrs = get_attributes_for_tier(tier_config.name)
+        attributes: dict[str, str] = {}
+        for attr_key in tier_attrs:
+            val = form_data.get(f"attr_{attr_key}", "")
+            if val and isinstance(val, str) and val.strip():
+                attributes[attr_key] = val.strip()
+
+        # Update name/description/attributes
         updated = character_service.update_character(
-            tier_config.name, character_id, name, description
+            tier_config.name, character_id, name, description, attributes=attributes
         )
         if not updated:
             if character_service.name_exists(tier_config.name, name, exclude_id=character_id):
@@ -1893,6 +1995,33 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
         character_service.delete_character(tier_config.name, character_id)
         return RedirectResponse(
             url=f"{url_prefix}/characters?success=Character+deleted",
+            status_code=303,
+        )
+
+    @router.post("/characters/{character_id}/relationship")
+    async def update_relationship_route(
+        request: Request,
+        character_id: str,
+        relationship_stage: str = Form(...),
+    ):
+        """Manually set a character's relationship stage (NSFW only)."""
+        from app.story_options import RELATIONSHIP_STAGES
+        if relationship_stage not in RELATIONSHIP_STAGES:
+            return RedirectResponse(
+                url=f"{url_prefix}/characters?edit={character_id}&error=Invalid+relationship+stage",
+                status_code=303,
+            )
+        character = character_service.get_character(tier_config.name, character_id)
+        if not character:
+            return RedirectResponse(
+                url=f"{url_prefix}/characters?error=Character+not+found",
+                status_code=303,
+            )
+        character.relationship_stage = relationship_stage
+        character.updated_at = datetime.now()
+        character_service._save_character(character)
+        return RedirectResponse(
+            url=f"{url_prefix}/characters?edit={character_id}&success=Relationship+updated",
             status_code=303,
         )
 
@@ -1990,8 +2119,28 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
                 "description": char.description,
                 "photo_urls": photo_urls,
                 "photo_count": len(char.photo_paths),
+                "attributes": char.attributes,
+                "relationship_stage": char.relationship_stage,
+                "story_count": char.story_count,
             })
         return JSONResponse(result)
+
+    @router.get("/characters/api/attributes")
+    async def list_attributes_api(request: Request):
+        """Return tier-filtered attribute options as JSON."""
+        from app.story_options import get_attributes_for_tier
+        tier_attrs = get_attributes_for_tier(tier_config.name)
+        grouped: dict[str, list] = {}
+        for key, attr in tier_attrs.items():
+            group = attr["group"]
+            if group not in grouped:
+                grouped[group] = []
+            grouped[group].append({
+                "key": key,
+                "label": attr["label"],
+                "options": attr["options"],
+            })
+        return JSONResponse(grouped)
 
 
     @router.get("/gallery")
@@ -2364,6 +2513,7 @@ def create_tier_router(tier_config: TierConfig) -> APIRouter:
 
             if scene.is_ending:
                 gallery_service.save_story(story_session)
+                _advance_relationships_for_story(story_session)
             else:
                 gallery_service.save_progress(tier_config.name, story_session)
 

@@ -18,6 +18,60 @@ MAX_PHOTO_SIZE = 10 * 1024 * 1024  # 10 MB
 ALLOWED_PHOTO_TYPES = {"image/jpeg": "jpg", "image/png": "png"}
 
 
+def compose_description(attributes: dict[str, str]) -> str:
+    """Compose a natural-language description from structured attribute selections.
+
+    Returns empty string if no attributes are provided.
+    """
+    if not attributes:
+        return ""
+
+    parts = []
+    # Physical
+    physical_parts = []
+    if attributes.get("hair_color"):
+        hair = attributes["hair_color"].lower()
+        length = attributes.get("hair_length", "").lower()
+        if length:
+            physical_parts.append(f"{length} {hair} hair")
+        else:
+            physical_parts.append(f"{hair} hair")
+    if attributes.get("eye_color"):
+        physical_parts.append(f"{attributes['eye_color'].lower()} eyes")
+    if attributes.get("skin_tone"):
+        physical_parts.append(f"{attributes['skin_tone'].lower()} skin")
+    if attributes.get("height"):
+        physical_parts.append(attributes["height"].lower())
+    if attributes.get("body_type"):
+        physical_parts.append(f"{attributes['body_type'].lower()} build")
+    if attributes.get("bust_size"):
+        physical_parts.append(f"{attributes['bust_size']} cup")
+    if physical_parts:
+        parts.append(", ".join(physical_parts))
+
+    # Personality
+    personality_parts = []
+    if attributes.get("temperament"):
+        personality_parts.append(attributes["temperament"].lower())
+    if attributes.get("energy"):
+        personality_parts.append(attributes["energy"].lower())
+    if attributes.get("archetype"):
+        personality_parts.append(attributes["archetype"].lower())
+    if personality_parts:
+        parts.append(" and ".join(personality_parts))
+
+    # Style
+    style_parts = []
+    if attributes.get("clothing_style"):
+        style_parts.append(f"{attributes['clothing_style'].lower()} style")
+    if attributes.get("aesthetic_vibe"):
+        style_parts.append(f"{attributes['aesthetic_vibe'].lower()} vibe")
+    if style_parts:
+        parts.append(", ".join(style_parts))
+
+    return ". ".join(parts) + "." if parts else ""
+
+
 class CharacterService:
     MAX_CHARACTERS = MAX_CHARACTERS
 
@@ -34,17 +88,27 @@ class CharacterService:
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    def create_character(self, tier: str, name: str, description: str) -> RosterCharacter | None:
+    def create_character(
+        self, tier: str, name: str, description: str,
+        attributes: dict[str, str] | None = None,
+    ) -> RosterCharacter | None:
         """Create a new roster character. Returns None if limit reached or name conflict."""
         if len(self.list_characters(tier)) >= MAX_CHARACTERS:
             return None
         if self.name_exists(tier, name):
             return None
 
+        attrs = attributes or {}
+        # Compose description from attributes if not provided
+        final_description = description.strip()
+        if attrs and not final_description:
+            final_description = compose_description(attrs)
+
         character = RosterCharacter(
             name=name.strip(),
-            description=description.strip(),
+            description=final_description,
             tier=tier,
+            attributes=attrs,
         )
         self._save_character(character)
         logger.info(f"Created character {character.character_id} '{name}' in tier {tier}")
@@ -76,16 +140,32 @@ class CharacterService:
         return characters
 
     def update_character(
-        self, tier: str, character_id: str, name: str, description: str
+        self, tier: str, character_id: str, name: str, description: str,
+        attributes: dict[str, str] | None = None,
     ) -> RosterCharacter | None:
-        """Update a character's name and description."""
+        """Update a character's name, description, and attributes."""
         character = self.get_character(tier, character_id)
         if not character:
             return None
         if self.name_exists(tier, name, exclude_id=character_id):
             return None
+
+        attrs = attributes or {}
+        final_description = description.strip()
+        if attrs:
+            composed = compose_description(attrs)
+            if final_description:
+                # Append free-text override after composed description
+                final_description = composed + " " + final_description if composed else final_description
+            else:
+                final_description = composed
+            character.attributes = attrs
+        elif not final_description and character.attributes:
+            # Keep existing composed description if no new description provided
+            final_description = character.description
+
         character.name = name.strip()
-        character.description = description.strip()
+        character.description = final_description
         character.updated_at = datetime.now()
         self._save_character(character)
         logger.info(f"Updated character {character_id}")
@@ -205,6 +285,40 @@ class CharacterService:
             )
         except Exception as e:
             logger.error(f"Failed to save character {character.character_id}: {e}")
+
+    # --- Relationship tracking ---
+
+    def advance_relationship(self, tier: str, character_id: str) -> RosterCharacter | None:
+        """Advance a character's relationship stage after story completion.
+
+        Increments story_count, advances relationship_stage one level if not at max,
+        and updates last_story_date. Only meaningful for NSFW tier.
+        """
+        from app.story_options import RELATIONSHIP_STAGES
+
+        character = self.get_character(tier, character_id)
+        if not character:
+            return None
+
+        character.story_count += 1
+        character.last_story_date = datetime.now().date().isoformat()
+
+        # Advance stage if not at max
+        try:
+            current_idx = RELATIONSHIP_STAGES.index(character.relationship_stage)
+            if current_idx < len(RELATIONSHIP_STAGES) - 1:
+                character.relationship_stage = RELATIONSHIP_STAGES[current_idx + 1]
+        except ValueError:
+            # Unknown stage — reset to first
+            character.relationship_stage = RELATIONSHIP_STAGES[0]
+
+        character.updated_at = datetime.now()
+        self._save_character(character)
+        logger.info(
+            f"Advanced relationship for character {character_id}: "
+            f"stage={character.relationship_stage}, stories={character.story_count}"
+        )
+        return character
 
     # --- Outfit CRUD ---
 

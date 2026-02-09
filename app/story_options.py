@@ -156,6 +156,81 @@ KINK_TOGGLES: dict[str, tuple[str, str, str]] = {}
 def build_kink_prompt(kinks: list[str]) -> tuple[str, str]: return "", ""
 
 
+# --- Structured character attribute definitions ---
+
+CHARACTER_ATTRIBUTES: dict[str, dict] = {
+    # Physical attributes
+    "hair_color": {
+        "label": "Hair Color",
+        "options": ["Blonde", "Brunette", "Black", "Red", "Auburn", "Silver", "Pink", "Blue"],
+        "tier_restrict": None,
+        "group": "physical",
+    },
+    "hair_length": {
+        "label": "Hair Length",
+        "options": ["Short", "Medium", "Long", "Very Long"],
+        "tier_restrict": None,
+        "group": "physical",
+    },
+    "eye_color": {
+        "label": "Eye Color",
+        "options": ["Brown", "Blue", "Green", "Hazel", "Gray", "Amber"],
+        "tier_restrict": None,
+        "group": "physical",
+    },
+    "skin_tone": {
+        "label": "Skin Tone",
+        "options": ["Fair", "Light", "Medium", "Olive", "Tan", "Dark"],
+        "tier_restrict": None,
+        "group": "physical",
+    },
+    "height": {
+        "label": "Height",
+        "options": ["Short", "Average", "Tall", "Very Tall"],
+        "tier_restrict": None,
+        "group": "physical",
+    },
+    # Personality attributes
+    "temperament": {
+        "label": "Temperament",
+        "options": ["Shy", "Bold", "Playful", "Dominant", "Gentle", "Fierce"],
+        "tier_restrict": None,
+        "group": "personality",
+    },
+    "energy": {
+        "label": "Energy",
+        "options": ["Calm", "Bubbly", "Intense", "Mysterious"],
+        "tier_restrict": None,
+        "group": "personality",
+    },
+    # Style attributes
+    "clothing_style": {
+        "label": "Clothing Style",
+        "options": ["Casual", "Sporty", "Elegant", "Gothic", "Bohemian", "Streetwear"],
+        "tier_restrict": None,
+        "group": "style",
+    },
+    "aesthetic_vibe": {
+        "label": "Aesthetic Vibe",
+        "options": ["Natural", "Glamorous", "Edgy", "Vintage"],
+        "tier_restrict": None,
+        "group": "style",
+    },
+}
+
+
+def get_attributes_for_tier(tier_name: str) -> dict[str, dict]:
+    """Return CHARACTER_ATTRIBUTES filtered for the given tier.
+
+    Removes categories where tier_restrict doesn't match (e.g., body_type
+    is NSFW-only and won't appear on kids or bible tiers).
+    """
+    return {
+        key: attr for key, attr in CHARACTER_ATTRIBUTES.items()
+        if attr["tier_restrict"] is None or attr["tier_restrict"] == tier_name
+    }
+
+
 _PICTURE_BOOK_AGES = {"toddler", "young-child"}
 
 

@@ -110,10 +110,14 @@ class RosterCharacter(BaseModel):
     """Standalone character entity for the reusable character roster."""
     character_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(..., max_length=100)
-    description: str = Field(..., max_length=500)
+    description: str = Field(default="", max_length=500)
     tier: str
     photo_paths: list[str] = Field(default_factory=list)
     outfits: list[CharacterOutfit] = Field(default_factory=list)
+    attributes: dict[str, str] = Field(default_factory=dict)
+    relationship_stage: str = Field(default="strangers")
+    story_count: int = Field(default=0)
+    last_story_date: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 

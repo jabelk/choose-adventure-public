@@ -61,7 +61,12 @@ function initCharacterPicker(characters, preselectedIds) {
             html += '<img class="character-picker-thumb" src="' + char.photo_urls[0] + '" alt="">';
         }
         html += '<span class="character-picker-info">';
-        html += '<span class="character-picker-name">' + char.name + '</span>';
+        html += '<span class="character-picker-name">' + char.name;
+        if (char.relationship_stage && char.relationship_stage !== 'strangers') {
+            var stageEmoji = {acquaintances:'🤝', flirting:'💕', dating:'❤️', intimate:'🔥', committed:'💍'};
+            html += ' <span class="relationship-badge">' + (stageEmoji[char.relationship_stage] || '') + '</span>';
+        }
+        html += '</span>';
         html += '<span class="character-picker-desc">' + truncDesc + '</span>';
         html += '</span>';
         html += '</label>';

@@ -133,6 +133,8 @@ This project uses [GitHub Spec Kit](https://github.com/github/spec-kit). The wor
 - JSON files at `data/family/{tier}/family.json` (035-family-mode)
 - Python 3.11+ (same as existing project) + FastAPI, Jinja2, Pydantic, anthropic SDK, openai SDK, httpx (for Bible API calls — already installed) (036-bible-story-tier)
 - N/A — templates hardcoded in Python, verse text fetched at runtime from Bible API (036-bible-story-tier)
+- Python 3.11+ (existing project) + FastAPI, Jinja2, Pydantic (all existing — no new dependencies) (042-character-depth)
+- JSON flat files in `data/characters/{tier}/{character_id}.json` (extends existing character storage) (042-character-depth)
 
 ## Recent Changes
 <!-- Updated automatically by spec-kit during /speckit.plan -->
